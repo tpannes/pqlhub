@@ -1,0 +1,61 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    CodeExport
+ *   Internal Name:   CodeExport
+ *   Description:     
+ *   PreConstraints:  (!empty(CodeExportExportDefinitionsPql)||!empty(CodeExportResourcesToExport))&&(CodeExportExportPql||CodeExportExportDfa||CodeExportExportClasses)&&EngineStatus==2&&(CodeExportSimulationMode||(!CodeExportSimulationMode&&CodeExportOutputPath!=""))
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+@self  = $self.$id,$node,$classGUID,*;
+@class = @self.$classGUID;
+@STRING_SEPARATOR = ';';
+
+@exportDefinitionsPql = @self.CodeExportExportDefinitionsPql;
+@resourcesToExport    = @self.CodeExportResourcesToExport;
+@outputPath           = @self.CodeExportOutputPath;
+@exportPql            = toInt(@self.CodeExportExportPql)     * 1; // bit 1
+@exportDfa            = toInt(@self.CodeExportExportDfa)     * 2; // bit 2
+@exportClasses        = toInt(@self.CodeExportExportClasses) * 4; // bit 3
+@searchExpression     = @self.CodeExportSearchExpression;
+@verbodeLevel         = @self.VerboseLevel; 
+
+// calculate bit field for boolean flags to combine them in one parameter
+@simulationMode           = toInt(@self.CodeExportSimulationMode)                *1; // bit 1
+@codeChecking             = toInt(@self.CodeExportCodeChecking)                  *2; // bit 2
+@generatePqlHeader        = toInt(@self.CodeExportGeneratePqlHeader)             *4; // bit 3
+@includeVersionChain      = toInt(@self.CodeExportIncludeVersionChain)           *8; // bit 4
+@genXmlComments           = toInt(@self.CodeExportGenerateXmlComments)          *16; // bit 5
+@genXmlCombinedOutputFile = toInt(@self.CodeExportGenerateXmlCombinedOutputFile)*32; // bit 6 
+@flags = 63 & (@simulationMode + @codeChecking + @generatePqlHeader + @includeVersionChain + @genXmlComments + @genXmlCombinedOutputFile);
+
+// calculate bit field for export types to combine them into one parameter
+@exportTypes        = 7 & (@exportPql + @exportDfa + @exportClasses);
+
+// build up string for filename options (e.g. separators) to combine them into one parameter
+@filenameOptions = 
+  @self.CodeExportClassPrefix + @STRING_SEPARATOR + 
+  @self.CodeExportClassAttributeSeparator + @STRING_SEPARATOR +
+  @self.CodeExportClassMethodSeparator + @STRING_SEPARATOR + 
+  @self.CodeExportPropertySeparator + @STRING_SEPARATOR +
+  @self.CodeExportPropertyIndexSeparator + @STRING_SEPARATOR + 
+  @self.CodeExportMethodIdSeparator + @STRING_SEPARATOR +
+  @self.CodeExportTemplateNamingScheme + @STRING_SEPARATOR +
+  @self.CodeExportInstanceNamingScheme + @STRING_SEPARATOR +
+  @self.CodeExportInvalidCharReplacement;
+  
+
+@searchExpressionDefault  = @class\$AttrDef(.$attrnameintern=="CodeExportSearchExpression").$DefaultValue;
+if ($self.CodeExportSearchExpression==@searchExpressionDefault || $self.CodeExportSearchExpression=="") then
+  @searchExpression = $invalid;
+endif 
+
+@rc = @self.CodeExportGeneric(@exportDefinitionsPql, @resourcesToExport, @outputPath, @exportTypes, @flags, @searchExpression, @filenameOptions, @verbodeLevel);  
+
+return @rc;
+

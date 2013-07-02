@@ -1,0 +1,27 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    Get Active Users
+ *   Internal Name:   GetActiveUsers
+ *   Description:     
+ *   PreConstraints:  !empty(UserQueryFilter)
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+@self    = $self.$id,$node,*;
+@session = $CurrentSessionId;
+
+@userQueryFilter = value(@self.UserQueryFilter);
+@verbodeLevel    = @self.VerboseLevel; 
+
+@self.GetActiveUsersGeneric(@userQueryFilter, @verbodeLevel);  
+
+@session.call("ConnectToDesktop", @self.$id, @session.$id, @self.$id);
+@self.start("DesktopViewResult", "yes", "yes");
+
+return 0;
+

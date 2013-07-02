@@ -1,0 +1,117 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    CopyAttributesGeneric
+ *   Internal Name:   CopyAttributesGeneric
+ *   Description:     
+ *   PreConstraints:  
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+/* PQL script "CopyAttributesGeneric" created 2011 by TimoP
+ * Version 2.0
+ * 
+ * Description:  
+ *   The script copies attribute values between two instances or templates. This is meant to be a convenience function 
+ *   to quickly populate attributes of a new object based on an existing, already configured one.
+ * 
+ * Input parameters:
+ *   Param1:  source object OID
+ *   Param2:  target object OID
+ *   Param3:  verbose level (0..9)
+ *   Param4:  flag defining whether system attributes $name and $internalname should be omitted (optional, default: no)
+ *   Param5:  flag defining whether binary attributes should be omitted (optional, default: no)
+ *
+ * Return: 
+ *   Number of changed attributes on target object
+ * 
+ */
+
+@MSG_INFO    = 'PUGM0002I'; 
+@MSG_WARNING = 'PUGM0001W';
+@MSG_ERROR   = 'PUGM0003E';
+@OBJTYPE_TEMPLATE = 2;
+@ATTR_TYPE_BINARY = 15;
+
+@self   = $self.$id,$displayname,$node,$classGUID,$inheritance,*;
+@class  = @self\$ClassGUID.$internalName;
+@method = 'CopyAttributesGeneric';
+
+
+@sourceObj = ToObjRef($param1);
+@targetObj = ToObjRef($param2);
+@verboseLevel = $param3;
+@omitObjNames = $param4;
+@omitBinAttrs = $param5;
+
+@sysAttrNames = array('$name' , '$internalname');
+
+
+// 2. copy attributes values from source to target object if they are different...
+@attributes = @sourceObj\$Inheritance\$AttrDef.$AttrNameIntern,$Type GroupBy $AttrNameIntern;
+ 
+@attrCountChanged = 0;
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Copy attributes from source '+@sourceObj.$id+' to target '+@targetObj.$id+'...');
+  if (@omitBinAttrs) then
+    message(@MSG_INFO, 'Binary attribute copy is disabled');
+  endif
+endif
+// special handling for system attributes $name and $internalname
+if (!@omitObjNames) then
+  forEach @attr in (@sysAttrNames)
+    if (@sourceObj.@attr != @targetObj.@attr) then
+      if (@verboseLevel>1) then
+        message(@MSG_INFO, '  + '+@attr+' is changed from "'+@targetObj.@attr+'" to "'+@sourceObj.@attr+'".');
+      endif
+      @targetObj.@attr = @sourceObj.@attr; 
+      @attrCountChanged++;
+    endif
+  next
+endif
+
+
+forEach @attr in (@attributes)
+  if (@omitBinAttrs && @attr.$Type==@ATTR_TYPE_BINARY) then
+    if (@verboseLevel>2) then
+      message(@MSG_INFO, '  - "'+@attr+'" is ignored since binary attribute copy is disabled');
+    endif
+  else
+    @isAttrDefinedOnTarget = count(@targetObj\$inheritance\$attrdef(.$attrnameintern==@attr).$attrnameintern)>0;  
+    if (@isAttrDefinedOnTarget) then
+      if ((@sourceObj.@attr != @targetObj.@attr)) then
+        if (@targetObj.@attr.$Editable) then
+          if (@verboseLevel>1) then
+            if (@attr.$Type!=@ATTR_TYPE_BINARY) then
+              message(@MSG_INFO, '  + "'+@attr+'" is changed from "'+@targetObj.@attr+'" to "'+@sourceObj.@attr+'".');
+            endif
+          endif
+          @targetObj.@attr = @sourceObj.@attr;
+          @attrCountChanged++;
+        else
+          if (@verboseLevel>1) then
+            message(@MSG_WARNING, '  - "'+@attr+'" is not editable and cannot be changed to "'+@sourceObj.@attr+'".');
+          endif
+        endif // (@targetObj.@attr.$Editable)
+      else
+        if (@verboseLevel>2) then
+          message(@MSG_INFO, '  = "'+@attr+'" is ignored since it already equals the source');
+        endif
+      endif // (@sourceObj.@attr != @targetObj.@attr)
+    else
+      if (@verboseLevel>2) then
+        message(@MSG_INFO, '  - "'+@attr+'" is ignored since it is not defined on target object');
+      endif  
+    endif // (@isAttrDefinedOnTarget)
+  endif
+next
+
+if (@verboseLevel>0) then
+  message(@MSG_INFO, ''+@attrCountChanged+' attributes were changed');
+endif
+
+return @attrCountChanged;

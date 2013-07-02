@@ -1,0 +1,113 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    TemplatizeInstanceTreeGeneric
+ *   Internal Name:   TemplatizeInstanceTreeGeneric
+ *   Description:     
+ *   PreConstraints:  
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+/* PQL script "TemplatizeInstanceTreeGeneric" created 2012 by TimoP
+ * Version 1.0
+ * 
+ * Description:  
+ *   The script "templatizes" a given instance tree by creating a new template for each object in the source tree while 
+ *   maintaining the original tree structure. This is useful in situations where changes are done on the instance level 
+ *   during development or test and where it would be a lot of work to manually create each template separately 
+ *   (e.g. a Root folder within a webserver).
+ * 
+ * Input parameters:
+ *   Param1:  source tree root OID
+ *   Param2:  target library folder OID
+ *   Param3:  verbose level (0..9)
+ *
+ * Return: 
+ *   Number of templates created
+ * 
+ */
+ 
+@MSG_INFO    = 'PUGM0002I'; 
+//@MSG_WARNING = 'PUGM0001W';
+//@MSG_ERROR   = 'PUGM0003E';
+
+@self   = $self.$id,$displayname,$node,$ClassGUID,$Inheritance,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'TemplatizeInstanceTreeGeneric';
+
+@sourceTreeRoot = $param1;
+@targetFolder   = $param2;
+@verboseLevel   = $param3;
+
+@OBJTYPE_TEMPLATE = 2;
+@LIBRARY = {7b6817ce-f190-3096-8b78-b38cf358e6c7};
+
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Templatizing source tree with root object "'+@sourceTreeRoot.$displayname+'" in folder "'+@targetFolder.$displayname+'" ...');
+endif
+
+@sourceTree = @sourceTreeRoot\$tree.$id,$name,$internalName,$displayname,$classguid,$treelevel;
+@objCount   = count(@sourceTree);
+@parentList = array(@targetFolder); // stores current parent for each treelevel (number of entries equals max treelevel at the end)
+
+
+@maxTreelevel = -1;
+@idx = 1;
+forEach @sourceObj in (@sourceTree)
+  
+  @treeLevel = @sourceObj.$treeLevel;
+  if (@verboseLevel>1) then
+    message(@MSG_INFO, ' >> processing object "'+@sourceObj.$displayname+'" ('+@sourceObj.$id+') at treelevel '+@treeLevel+' ['+@idx+' of '+@objCount+']');
+  endif
+  @parentListIndex = @treeLevel+1;
+  @parent = @parentList[@parentListIndex];
+  
+
+// execute template creation and attribute copy on DC to avoid blocking threads like: 
+// "PONT0030W Waiting already <XX> seconds for reply from node 0x0 for request from 'OmsWorldClient::WriteMods" etc..
+
+  // create template for current object
+  @originator=@sourceObj\$classGUID.$id,$objType,$internalname;
+  if (@originator.$objType==@OBJTYPE_TEMPLATE) then
+    if (@verboseLevel>2) then
+      message(@MSG_INFO, '    >> creating new template from class "'+@originator.$internalname+'" underneath "'+@parent.$displayname+'" ('+@parent.$id+')');
+    endif
+    $0: @template = @LIBRARY.ProjectNewDuplicateTemplate(@originator.$id,@parent,@originator.$id).Return1;
+  else
+    if (@verboseLevel>2) then
+      message(@MSG_INFO, '    >> creating new duplicate template of "'+@originator.$internalname+'" underneath "'+@parent.$displayname+'" ('+@parent.$id+')');
+    endif
+    $0: @template = @LIBRARY.ProjectNewTemplate(@originator.$id,@parent,@originator.$id).Return1;
+  endif    
+
+  // copy all attributes from source instance to new template
+  $0: @self.start("CopyAttributesGeneric", @sourceObj, @template);
+
+  // if we reach a new maximum for the treelevel, the parent list has to be extended
+  if (@treeLevel > @maxTreelevel) then
+    if (@verboseLevel>3) then
+      message(@MSG_INFO, '    >> adding template '+@template+' to parent list');
+    endif
+    @parentList = insertValue(@parentList, @template);
+    @maxTreelevel++;
+  // otherwise, update the respective extry in parent list with OID of current template  
+  else 
+    if (@verboseLevel>3) then
+      message(@MSG_INFO, '    >> changing parent list entry at index '+(@parentListIndex+1)+' from '+@parentList[@parentListIndex+1]+' to '+@template);
+    endif  
+    @parentList = setValue(@parentList, @template, @parentListIndex+1);  
+  endif
+  @idx++;  
+
+next
+
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Finished. '+@idx+' templates created');
+endif
+
+return @idx;
+ 

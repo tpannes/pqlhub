@@ -1,0 +1,18 @@
+dim value;
+@MSG_ERROR = 'PUGM0003E';
+@FORBIDDEN_CHARACTERRS = array('?','%','<','>','"','|','*');
+@DIR_SEPARATORS = array('/','\');
+
+if (value!=""&&!(right(value,1) like @DIR_SEPARATORS)) then 
+    message(@MSG_ERROR, 'Output folder name must end with a directory separator ("/" or "\")');  
+endif
+
+forEach @char in (@FORBIDDEN_CHARACTERRS)
+  if (pos(@char, value)>0) then 
+    message(@MSG_ERROR, 'Character "'+@char+'" not allowed in output folder name');  
+  endif
+next
+
+
+
+

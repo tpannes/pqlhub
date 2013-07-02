@@ -1,0 +1,24 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    Backup Portal
+ *   Internal Name:   BackupPortal
+ *   Description:     
+ *   PreConstraints:  !empty(PortalBackupWebserverOid)&&PortalBackupExportPath!=""
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+@self = $self.$id,$node,*;
+
+@webserver    = @self.PortalBackupWebserverOid;
+@exportPath   = @self.PortalBackupExportPath;
+@createSubDir = @self.PortalBackupCreateNewSubDir;
+@verbodeLevel = @self.VerboseLevel; 
+
+@self.start("BackupPortalGeneric", @webserver, @exportPath, @createSubDir, @verbodeLevel);
+ 
+return 0;

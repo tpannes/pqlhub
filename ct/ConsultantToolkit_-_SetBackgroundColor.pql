@@ -1,0 +1,28 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    Set Background Color
+ *   Internal Name:   SetBackgroundColor
+ *   Description:     
+ *   PreConstraints:  
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+@MSG_INFO = 'PUGM0002I'; 
+@self     = $self.$id,$displayname,$node,$classGUID,$background,*;
+@class    = @self\$classGUID.$internalName;
+@method   = 'SetBackgroundColor';
+
+@verboseLevel = @self.VerboseLevel;
+@bgColor      = @self.BackgroundColor;
+
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Setting background color to '+@bgColor); 
+endif
+@self.$background = @bgColor;
+
+return @bgColor;

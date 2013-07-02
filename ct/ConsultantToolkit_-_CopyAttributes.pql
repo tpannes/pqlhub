@@ -1,0 +1,36 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    Copy Attributes
+ *   Internal Name:   CopyAttributes
+ *   Description:     
+ *   PreConstraints:  !empty(CopyAttributesSource)&&!empty(CopyAttributesTarget)
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+@self = $self.$id,$node,*;
+@MSG_ERROR   = 'PUGM0003E';
+
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'CopyAttributes';
+
+@sourceObj    = @self.CopyAttributesSource;
+@targetObjs   = value(@self.CopyAttributesTarget);
+@verbodeLevel = @self.VerboseLevel; 
+@omitObjName  = @self.CopyAttributesOmitObjNames;
+@omitBinAttrs = @self.CopyAttributesOmitBinaryAttributes;
+
+if (IsInvalid(@sourceObj) OR IsInvalid(@targetObjs)) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid source or target object'); 
+endif
+
+ForEach @targetObj in (@targetObjs)
+  @self.CopyAttributesGeneric(@sourceObj, @targetObj, @verbodeLevel, @omitObjName, @omitBinAttrs);  
+Next
+
+return 0;
+

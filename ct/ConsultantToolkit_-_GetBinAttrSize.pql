@@ -1,0 +1,27 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    Get Binary Attribute Size
+ *   Internal Name:   GetBinAttrSize
+ *   Description:     
+ *   PreConstraints:  !empty(BinAttrFunctionsSourceObjects)&&BinAttrFunctionsAttrSelection!=""
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+
+@self  = $self.$id,$node,$ClassGuid,*;
+@session = $CurrentSessionId;
+@showResultInDesktop = @self.ShowResultInNewWindow;
+
+@self.GetBinAttrSizeIntern();
+
+if (@showResultInDesktop) then
+  @session.call("ConnectToDesktop", @self.$id, @session.$id, @self.$id);
+  @self.start("DesktopViewResult", "yes", "yes");
+endif
+
+return 0;

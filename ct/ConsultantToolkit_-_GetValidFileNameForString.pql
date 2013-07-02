@@ -1,0 +1,53 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    GetValidFileNameForString
+ *   Internal Name:   GetValidFileNameForString
+ *   Description:     
+ *   PreConstraints:  
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+/* PQL script "GetValidFileNameForString" created 2012 by TimoP
+ * Version 1.0
+ * 
+ * Description:  
+ *   The script creates a valid filename for a given input string by exchanging all problematic characters by an underscore.
+ *   
+ * 
+ * Usage: 
+ *   Param1: input string to be converted into a valid filename
+ *   Param2: verbose level (optional)
+ * 
+ * Return:
+ *   Valid filename based on input string where all forbidden characters are exchanged by underscores
+ *  
+ * 
+ */
+
+
+@MSG_INFO    = 'PUGM0002I'; //@MSG_WARNING = 'PUGM0001W'; @MSG_ERROR   = 'PUGM0003E';
+@self   = $self.$id,$displayname,$node,$ClassGUID,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'GetValidFileNameForString';
+
+
+@inputString  = $param1;
+@verboseLevel = $param2;
+
+@FORBIDDEN_CHARACTERRS = array('?','/','\','%','<','>',':','"','|','*');
+ 
+@fileName = @inputString;
+ForEach @char in (@FORBIDDEN_CHARACTERRS)
+  @fileName = substitute(@fileName, @char,'_');
+Next
+
+if (@verboseLevel>4) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Input: "'+@inputString+'", Output: "'+@fileName+'"'); 
+endif
+
+return @fileName;

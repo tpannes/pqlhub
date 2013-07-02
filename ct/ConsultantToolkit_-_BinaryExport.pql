@@ -1,0 +1,33 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    Binary Export
+ *   Internal Name:   BinaryExport
+ *   Description:     
+ *   PreConstraints:  !empty(BinAttrFunctionsSourceObjects)&&BinAttrExportPath!=""
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+@self = $self.$id,$node,*;
+@node = @self.$node;
+
+@exportObjects    = value(@self.BinAttrFunctionsSourceObjects);
+@binAttrSelection = value(@self.BinAttrFunctionsAttrSelection);
+@exportPath       = @self.BinAttrExportPath;
+@verbodeLevel     = @self.VerboseLevel; 
+@localExport      = @self.BinAttrExportLocalOnly;
+
+@exportNode = @node;
+if (@localExport) then @exportNode = $CurrentNodeId; endif
+
+forEach @obj in (@exportObjects)
+  if (isAccessible(@obj)) then
+    @exportNode: @self.start("BinaryExportGeneric", @obj, @binAttrSelection, @exportPath, @exportNode, @verbodeLevel);
+  endif
+next
+
+return 0;

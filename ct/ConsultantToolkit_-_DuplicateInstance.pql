@@ -1,0 +1,47 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    Duplicate Instance
+ *   Internal Name:   DuplicateInstance
+ *   Description:     
+ *   PreConstraints:  !empty(ObjectDuplicationSourceOid)&&!empty(ObjectDuplicationContainerOid)
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+
+@MSG_INFO    = 'PUGM0002I'; 
+@MSG_ERROR   = 'PUGM0003E';
+@OBJTYPE_CLASS = 1;
+
+@self = $self.$id,$node,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'DuplicateInstance';
+
+@sourceObj    = @self.ObjectDuplicationSourceOid;
+@container    = @self.ObjectDuplicationContainerOid;
+@verbodeLevel = @self.VerboseLevel; 
+@targetNode   = @container.$node;
+
+if (isInvalid(@sourceObj) OR isInvalid(@container)) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid source or container OID'); 
+endif
+
+if (@verbodeLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Creating copy of "'+@sourceObj.$displayname+'" ('+@sourceObj.$id+') in folder "'+@container.$displayname+'" ('+@container.$id+')...');
+endif  
+@originator = @sourceObj\$classGUID(*:).$id,$name,$objType;
+if (@originator.$objType==@OBJTYPE_CLASS) then
+  @method = "Instantiate"; // if instance is derived from a class
+else
+  @method = "InstantiateTemplate"; // if instance is derived from a template
+endif
+
+@newInstance = @targetNode.call(@method, @originator.$id, @container, @originator.$id).Return1;
+@self.CopyAttributesGeneric(@sourceObj, @newInstance, @verbodeLevel);  
+
+return 0;
+

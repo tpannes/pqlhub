@@ -1,0 +1,165 @@
+/**
+ *   CodeExport v3.9
+ *   2010-2013 by TimoP
+ *   File generated at 2013/07/02 11:16:04 by TimoP
+ *   ---
+ *   Visible Name:    BinaryExportGeneric
+ *   Internal Name:   BinaryExportGeneric
+ *   Description:     
+ *   PreConstraints:  
+ *   Expression:  
+ *   Parameter:     
+ *
+**/
+
+/* PQL script "BinaryExportGeneric" created 2011 by TimoP
+ * Version 1.3
+ * 
+ * Description:  
+ *   This script will export the content of all binary attributes of an arbitrary object to the local filesystem.
+ *   The output files will be named using the following scheme:
+ *   <EXPORT_PATH>\<OBJ_INTERNAL_NAME>_<OBJ_ID>_-_<ATTR_INTERNAL_NAME>.<EXT>
+ *   
+ * 
+ * Usage: 
+ *   Param1: source object 
+ *   Param2: binary attributes to export
+ *   Param3: output path
+ *   Param4: export local flag
+ *   Param5: verbose level (optional)
+ * 
+ * Return:
+ *   Number of exported binary attributes
+ *  
+ * 
+ */
+
+
+//@MSG_WARNING = 'PUGM0001W';
+@MSG_INFO    = 'PUGM0002I'; 
+@MSG_ERROR   = 'PUGM0003E';
+@self   = $self.$id,$displayname,$node,$ClassGUID,*;
+@class  = @self\$ClassGUID.$InternalName;
+//@node   = @self.$node;
+@method = 'BinaryExportGeneric';
+@ATTR_TYPE_BINARY = 15;
+@DEFAULT_FILE_EXTENSION = 'dat';
+
+
+@sourceObject  = $param1;
+@attrSelection = $param2;
+@exportPath    = $param3;
+@exportNode    = $param4;
+@verboseLevel  = $param5;
+
+@fileTypeMappingTable = Array(
+  {'dataAfpdsBinary','AFPDS_Name','afp'},
+  {'dataAsciiBinary','TargetName','txt'},
+  {'dataBmpBinary','TargetName','bmp'},
+  {'dataGifBinary','TargetName','gif'},
+  {'dataHtmlBinary','TargetName','html'},
+  {'dataJpegBinary','TargetName','jpg'},
+  {'dataLinedataBinary','LineData_Name','txt'},
+  {'dataPdfBinary','TargetName','pdf'},
+  {'dataPNGBinary','TargetName','png'},
+  {'dataTiffBinary','TargetName','xml'},
+  {'dataXMLBinary','TargetName','xml'},
+  
+  {'GIF','CONTENT','gif'},
+  {'HTM','CONTENT','html'},
+  {'PNG','CONTENT','png'},
+  {'BMP','CONTENT','bmp'},
+  {'TIF','CONTENT','tiff'},
+  {'DFA','CONTENT','dfa'},
+  {'JPG','CONTENT','jpg'},
+  {'IMP','CONTENT','imp'},
+  {'PSG','CONTENT','psg'},
+  {'OVL','CONTENT','ovl'},
+  {'OGL','CONTENT','ogl'},
+  {'FDF','CONTENT','fdf'},
+  {'INC','CONTENT','inc'},
+  {'CDP','CONTENT','cdp'},
+  {'FON','CONTENT','fon'},
+  {'CHS','CONTENT','chs'},
+  {'TTF','CONTENT','ttf'},
+  
+  {'PcsLogData','DataBinary','log'}
+);
+
+
+// 1. check if parameters are valid
+if (IsInvalid(@sourceObject.$id)) then 
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid source object specified via $param1'); 
+endif
+if (@exportPath=="" OR @exportPath==$invalid) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid export path specified via $param3'); 
+endif
+if (@exportNode=="" OR @exportNode==$invalid) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid export node specified via $param4'); 
+endif
+
+@attrCount = count(@attrSelection);
+if (@attrCount==0) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] No attributes defined for export via $param2'); 
+endif
+
+@dirSeparators = array('/', '\');
+if (!(right(@exportPath,1) like @dirSeparators)) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Directory separator ("/" or "\") missing at the end of export path');
+endif
+
+
+// 2. find data class for export helper (transient instance is created later)
+$local,$0: @DataGenericBinaryClass  = $search($classes of DataGenericBinary:).$id,$LogicalGUID top 1;
+@exportToolBinAttrName = 'TargetName';
+
+
+
+// 3. export binary attributes of source object to filesystem
+if (@verboseLevel>0) then
+  message(@MSG_INFO, 'Processing object "'+@sourceObject.$internalname+'" ['+@sourceObject.$id+'] ...');
+endif
+@attributes = @sourceObject\$inheritance\$attrDef(.$attrNameIntern like @attrSelection).$attrNameIntern,$type groupBy $attrNameIntern;
+@attrCountExported = 0;
+forEach @attr in (@attributes)
+
+  if (@attr.$Type!=@ATTR_TYPE_BINARY) then
+    if (@verboseLevel>2) then
+      message(@MSG_INFO,' -> Attribute '+@attr+' is not a binary attribute and will be ignored.');
+    endif
+  else
+    if (toString(@sourceObject.@attr)=='') then
+      if (@verboseLevel>2) then
+        message(@MSG_INFO,' -> Attribute '+@attr+' is empty and will be ignored.');
+      endif
+    else
+      @fileExtension = @DEFAULT_FILE_EXTENSION;
+      @className = @sourceObject.$InternalName;
+      ForEach @entry in (@fileTypeMappingTable)
+        if (@entry[1] like @sourceObject\$inheritance.$InternalName) then
+          if (@entry[2]==@attr) then
+            @fileExtension = @entry[3];
+          endif
+        endif
+      Next
+      @exportFilename = @className + '_' +@sourceObject.$id + '_-_' + @attr + '.' + @fileExtension;
+      @exportPathFull = @exportPath+ @exportFilename;
+      //--- this code needs to run on the node where binary export is performed ----------------------
+      @exportNode: if (1) then
+        // create temporary data object to export binary content to filesystem
+        @exportTool = @exportNode.call("InstantiateTransient",@DataGenericBinaryClass.$LogicalGUID);
+        @exportTool = @exportTool.Return1;
+        @exportTool.@exportToolBinAttrName = @sourceObject.@attr;
+        @exportTool.BinaryExport(@exportToolBinAttrName, @exportPathFull);
+      endif
+      //----------------------------------------------------------------------------------------------
+      @attrCountExported++;
+      if (@verboseLevel>0) then
+        message(@MSG_INFO, ' -> Binary content of attribute "'+@attr+'" was exported to file "'+@exportPathFull+'.');
+      endif
+    endif
+  endif
+next
+
+
+return @attrCountExported;

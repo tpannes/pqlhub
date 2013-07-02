@@ -1,0 +1,12 @@
+dim value;
+@MSG_ERROR = 'PUGM0003E';
+@LGUID_LibraryFolder = {9b5bafe0-d51e-3727-a108-7d5a7e8a284e};
+
+@inputOID = value;
+@inputOID = @inputOID.$LogicalGUID;
+
+if (@inputOID=="" || @inputOID==$Invalid) then return 0; endif
+
+if !(@inputOID\$inheritance.$LogicalGUID==@LGUID_LibraryFolder) then 
+  Message(@MSG_ERROR, 'Specified OID must point to a "LibraryFolder" instance!');  
+endif
