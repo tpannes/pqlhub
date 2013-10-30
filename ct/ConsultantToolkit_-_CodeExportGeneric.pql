@@ -1,17 +1,3 @@
-/**
- *   CodeExport v3.9
- *   2010-2013 by TimoP
- *   File generated at 2013/07/02 11:16:04 by TimoP
- *   ---
- *   Visible Name:    CodeExportGeneric
- *   Internal Name:   CodeExportGeneric
- *   Description:     
- *   PreConstraints:  
- *   Expression:  
- *   Parameter:     
- *
-**/
-
 /*
  *    .d8888b.                888          8888888888                                    888
  *   d88P  Y88b               888          888                                           888
@@ -23,10 +9,10 @@
  *    "Y8888P"   "Y88P"   "Y88888  "Y8888  8888888888 888  888 88888P"   "Y88P"  888      "Y888
  *                                                             888
  *                                                             888
- *                                                             888        v3.9
+ *                                                             888        v4.0
  *                                                             
  * created by TimoP, initial version released 03/2010, 
- * credits to RalfH / ManfredG for some nice ideas and testing
+ * credits to RalfH / ManfredG / MarcoP for some nice ideas and testing
  *
  * 
  * Desciption:
@@ -136,6 +122,10 @@
  *       - bugfix: duplicate method names are now handled correctly (filenames will be suffixed by methodID)
  *       - bugfix: combined XML file was not created properly before
  *       - bugfix: file counters are only increased when export was successful (in case or simulation is OFF)
+ *   v4.0:
+ *       - added support for new system attributes / properties: $Abstract, $Final, $Delegate, $Accessibility  
+ *       - added mapping between system attributes and binary versions for backward compatibilty
+ *
  *
  *   
  *   Known issues (will not affect functionality)
@@ -207,7 +197,7 @@
 
 
 // constants
-@VERSION = "v3.9";
+@VERSION = "v4.0";
 @CR = char(10);
 @CRLF = char(10)+char(13);
 @TAB  = char(9);
@@ -248,9 +238,11 @@ if ($param4 !=$invalid) then
 endif 
   
 if (@externalCall) then
-  if ( ($param1 !=$invalid && $param1 !="") || ($param2 !=$invalid && $param2 !="") ) then
-    if ($param1 !=$invalid && $param1 !="") then @exportDefinitionsPql       = $param1; endif
-    if ($param2 !=$invalid && $param2 !="") then @exportDefinitionsResources = $param2; endif
+  @exportDefinitionsPqlDefined       = ($param1 !=$invalid && Count($param1)>0 && $param1[1] != "");
+  @exportDefinitionsResourcesDefined = ($param2 !=$invalid && Count($param2)>0 && $param2[1] != "");
+  if ( @exportDefinitionsPqlDefined || @exportDefinitionsResourcesDefined ) then
+    if (@exportDefinitionsPqlDefined)       then @exportDefinitionsPql       = $param1; endif
+    if (@exportDefinitionsResourcesDefined) then @exportDefinitionsResources = $param2; endif
     @exportPathBase     = $param3;
     @exportTypes        = toInt($param4);
     @export_PQL = (@exportTypes & 1) >0; // lowest bit defines if PQL code is exported
@@ -286,200 +278,220 @@ endif
 
 
 // human readable description of attibute types
-@attrTypeTable = Array("1","2","3","4","Integer","6","Float","String","9","Memory","Objref","12","Date/Time","14","Binary","Boolean","Binary remote",
-                       "18","19","20","21","22","23","24","25","26","27","28","29","30","31","Date","Time","34","35","36","GUID","","AttrDefKey");
+@attrTypeTable = Array('1','2','3','4','Integer','6','Float','String','9','Memory','Objref','12','Date/Time','14','Binary','Boolean','Binary remote',
+                       '18','19','20','21','22','23','24','25','26','27','28','29','30','31','Date','Time','34','35','36','GUID','','AttrDefKey');
 
 // prefixes in attribute properties that indicate PQL code
-@propertyPrefixPQLTable      = Array("Pqlstatement=", "PQL:");
+@propertyPrefixPQLTable      = Array('Pqlstatement=', 'PQL:');
 @propertyPrefixPQLTableCount = count(@propertyPrefixPQLTable);
 
 // List of method properties that may contain PQL code ($Param is not covered here as its treated separately)
 // [Internal name   |   Visible Name     ]
 @methodPropertyTable = Array(
-{"$PreConstraints"  ,   "PreConstraints" },
-{"$PostConstraints" ,   "Expression"     }
+{'$PreConstraints'  ,   'PreConstraints' },
+{'$PostConstraints' ,   'Expression'     }
 );
 
 // List of attribute properties that may contain PQL code
 // [Internal name   |   Visible Name      | Is Array | Only valid for $EditMode ]
 @attributePropertyTable = Array(
-{"$Constraints"     ,   "Constraints"     , 0, '*'},
-{"$Range"           ,   "InputRange"      , 0, '*'},
-{"$ViewConstraints" ,   "ViewConstraints" , 0, '*'},
-{"$EditConstraints" ,   "EditConstraints" , 0, '*'},
-{"$Substitutions"   ,   "Substitutions"   , 1, {'MultiListBox', 'ComboBox'}}
+{'$Constraints'     ,   'Constraints'     , 0, '*'},
+{'$Range'           ,   'InputRange'      , 0, '*'},
+{'$ViewConstraints' ,   'ViewConstraints' , 0, '*'},
+{'$EditConstraints' ,   'EditConstraints' , 0, '*'},
+{'$Substitutions'   ,   'Substitutions'   , 1, {'MultiListBox', 'ComboBox'}}
 );
 
 // Class feature table
 // {  Name      ,   XML list tag name  ,   XML entry tag name    }  
 @featureMappingTable = Array(
-{"ClassDef"      ,   ""                ,   "ClassDefinition"      },
-{"AttrDef"       ,   "AttributeList"   ,   "AttributeDefinition"  },
-{"MethDef"       ,   "MethodList"      ,   "MethodDefinition"     },
-{"ParentDef"     ,   "ParentRefList"   ,   "ParentRefDefinition"  },
-{"ChildDef"      ,   "ChildRefList"    ,   "ChildRefDefinition"   },
-{"StateDef"      ,   "StateList"       ,   "StateDefinition"      },
-{"StateTransDef" ,   "StateTransList"  ,   "StateTransDefinition" }
+{'ClassDef'      ,   ''                ,   'ClassDefinition'      },
+{'AttrDef'       ,   'AttributeList'   ,   'AttributeDefinition'  },
+{'MethDef'       ,   'MethodList'      ,   'MethodDefinition'     },
+{'ParentDef'     ,   'ParentRefList'   ,   'ParentRefDefinition'  },
+{'ChildDef'      ,   'ChildRefList'    ,   'ChildRefDefinition'   },
+{'StateDef'      ,   'StateList'       ,   'StateDefinition'      },
+{'StateTransDef' ,   'StateTransList'  ,   'StateTransDefinition' }
 );
 
 // Class feature metadata tables
-// {Property Name, Ignore [0,1], IsArray [0,1], Encode [0,1=B64,2=LGUID]}
+// {Property Name, IsArray [0,1], Encode [0,1=B64,2=LGUID]}
 @classMetadataTable = Array(
-{'Name'                  ,0,0,1},
-{'Internalname'          ,0,0,0},
-{'Logicalguid'           ,0,0,0},
-{'Enginestatus'          ,0,0,0},
-{'ObjectDescription'     ,0,0,1},
-{'Background'            ,0,0,0},
-{'Icon'                  ,0,0,2}
+{'Id'                           ,0,0, 7.00}, // Object ID 
+{'Name'                         ,0,1, 7.00}, // Visible Name
+{'Internalname'                 ,0,0, 7.00}, // Internal name
+{'Logicalguid'                  ,0,0, 7.00}, // Logical GUID
+{'VersionGUID'                  ,0,0, 7.00}, // Version GUID
+{'Constraints'                  ,0,0, 7.00}, // Constraints      
+{'Created'                      ,0,0, 7.00}, // Creation Date
+{'Modified'                     ,0,0, 7.00}, // Modify Date
+{'Author'                       ,0,0, 7.00}, // Author
+{'Inheritance'                  ,1,0, 7.00}, // Inheritance
+{'Enginestatus'                 ,0,0, 7.00}, // Initial state
+{'ObjectDescription'            ,0,1, 7.00}, // Object Description
+{'Background'                   ,0,0, 7.00}, // Background color
+{'Icon'                         ,0,2, 7.00}, // Icon reference
+{'InstanceVersioning'           ,0,0, 7.14}, // Instance Versioning
+{'Accessibility'                ,0,0, 7.14}, // Accessibility
+{'Abstract'                     ,0,0, 7.14}, // Abstract
+{'Final'                        ,0,0, 7.14}  // Final
 );
 
-// {Property Name, Ignore [0,1], IsArray [0,1], Base64Encode [0,1]}
+
+// {Property Name, Ignore [0,1], IsArray [0,1], Base64Encode [0,1], BinVersion Required}
 @attributeMetadataTable = Array(
-{'AttrId'                   ,0,0,0},
-{'AttrNameVisible'          ,0,0,1},
-{'AttrNameIntern'           ,0,0,0},
-{'Type'                     ,0,0,3},
-{'DefaultValue'             ,0,0,1},
-{'Substitutions'            ,0,1,1},
-{'Description'              ,0,0,1},
-{'EditMode'                 ,0,0,0},
-{'Constraints'              ,0,0,1},
-{'Multiple'                 ,0,0,0},
-{'ClassToReference'         ,0,0,0},
-{'SubstitutionsCount'       ,0,0,0},
-{'SortIndex'                ,0,0,0},
-{'TypeProperty'             ,0,0,0},
-{'EditProperty'             ,0,0,0},
-{'VisibleForEdit'           ,0,0,0},
-{'Range'                    ,0,0,0},
-{'Format'                   ,0,0,0},
-{'ViewPrivileges'           ,0,1,0},
-{'ViewConstraints'          ,0,0,1},
-{'EditPrivileges'           ,0,1,0},
-{'EditConstraints'          ,0,0,1},
-{'ProgTypeProperties'       ,0,0,0},
-{'ContainsExpression'       ,0,0,0},
-{'ViewPrivilegeBitmap'      ,1,0,0},
-{'EditPrivilegeBitmap'      ,1,0,0},
-{'TranslateContent'         ,0,0,0},
-{'Docu'                     ,0,1,0}
+{'AttrId'                       ,0,0, 7.00}, // ID
+{'AttrNameVisible'              ,0,1, 7.00}, // Name
+{'AttrNameIntern'               ,0,0, 7.00}, // Internal (constraints) name
+{'Type'                         ,0,3, 7.00}, // Type
+{'DefaultValue'                 ,0,1, 7.00}, // Default
+{'Substitutions'                ,1,1, 7.00}, // Substitution
+{'Description'                  ,0,1, 7.00}, // Description
+{'EditMode'                     ,0,0, 7.00}, // Edit
+{'Constraints'                  ,0,1, 7.00}, // Constraints
+{'Multiple'                     ,0,0, 7.00}, // Multiple value
+{'ClassToReference'             ,0,0, 7.00}, // Class reference
+{'SubstitutionsCount'           ,0,0, 7.00}, // Value count 
+{'SortIndex'                    ,0,0, 7.00}, // Sort ID
+{'TypeProperty'                 ,0,1, 7.00}, // Type property
+{'EditProperty'                 ,0,1, 7.00}, // Edit property
+{'VisibleForEdit'               ,0,0, 7.00}, // Visible for edit
+{'Range'                        ,0,0, 7.00}, // Input range
+{'Format'                       ,0,0, 7.00}, // Output format
+{'ViewPrivileges'               ,1,0, 7.00}, // View Privilege
+{'ViewConstraints'              ,0,1, 7.00}, // View Constraints
+{'EditPrivileges'               ,1,0, 7.00}, // Edit Privilege    
+{'EditConstraints'              ,0,1, 7.00}, // Edit Constraints
+{'ProgTypeProperties'           ,0,0, 7.00}, // Program Type property
+{'ContainsExpression'           ,0,0, 7.00}, // Contains Expression
+{'TranslateContent'             ,0,0, 7.00}, // Translate Content
+{'Docu'                         ,1,0, 7.00}, // Docu
+{'CalculateDefaultValue'        ,0,0, 7.16}, // Calculate default
+{'Accessibility'                ,0,0, 7.16}  // Accessibility
 );
 
 
 @methodMetadataTable = Array(
-{'MethId'                   ,0,0,0},
-{'MethNameIntern'           ,0,0,0},
-{'MethNameVisible'          ,0,0,1},
-{'DontInherit'              ,0,0,0},
-{'ValidForInstance'         ,0,0,0},
-{'ValidForTemplate'         ,0,0,0},
-{'ValidForClass'            ,0,0,0},
-{'ValidForState'            ,0,0,0},
-{'ValidForAgent'            ,0,0,0},
-{'DefaultMethod'            ,0,0,0},
-{'Type'                     ,0,0,0},
-{'PreConstraints'           ,0,0,1},
-{'PostConstraints'          ,0,0,1},
-{'Privileges'               ,0,1,0},
-{'VisibleInPopUp'           ,0,0,0},
-{'VisibleInToolBox'         ,0,0,0},
-{'LocalOnly'                ,0,0,0},
-{'ConnectToObject'          ,0,0,0},
-{'ImplementedBy'            ,0,0,0},
-{'PrgName'                  ,0,0,0},
-{'WrkDir'                   ,0,0,0},
-{'LinePar'                  ,0,0,0},
-{'WindowMode'               ,0,0,0},
-{'Description'              ,0,0,1},
-{'ParamCount'               ,0,0,0},
-{'Param'                    ,0,1,1},
-{'ReturnType'               ,0,0,0},
-{'VersionContext'           ,0,0,0},
-{'ImplementationName'       ,0,0,0},
-{'PrivilegeBitmap'          ,1,0,0},
-{'Icon'                     ,0,0,0},
-{'QuickLaunch'              ,0,0,0},
-{'Docu'                     ,0,1,0}
+{'MethId'                       ,0,0, 7.00}, // Method ID
+{'MethNameIntern'               ,0,0, 7.00}, // Method internal name
+{'MethNameVisible'              ,0,1, 7.00}, // Method name
+{'DontInherit'                  ,0,0, 7.00}, // Don't inherit to children
+{'ValidForInstance'             ,0,0, 7.00}, // valid for Instance
+{'ValidForTemplate'             ,0,0, 7.00}, // valid for Template
+{'ValidForClass'                ,0,0, 7.00}, // valid for Clas   
+{'ValidForState'                ,0,0, 7.00}, // Valid only for State machine
+{'ValidForAgent'                ,0,0, 7.00}, // Valid for agent  
+{'DefaultMethod'                ,0,0, 7.00}, // Default method
+{'Type'                         ,0,0, 7.00}, // Method type
+{'PreConstraints'               ,0,1, 7.00}, // Pre Constraints
+{'PostConstraints'              ,0,1, 7.00}, // Expression
+{'Privileges'                   ,1,0, 7.00}, // Privilege
+{'VisibleInPopUp'               ,0,0, 7.00}, // Visible in PopUpMenu
+{'VisibleInToolBox'             ,0,0, 7.00}, // Visible in Tool Box
+{'LocalOnly'                    ,0,0, 7.00}, // Execute locally
+{'ConnectToObject'              ,0,0, 7.00}, // Connect to object
+{'ImplementedBy'                ,0,0, 7.00}, // Method implementation 
+{'PrgName'                      ,0,0, 7.00}, // Par Exec
+{'WrkDir'                       ,0,0, 7.00}, // Par Workd
+{'LinePar'                      ,0,0, 7.00}, // Par Line
+{'WindowMode'                   ,0,0, 7.00}, // Par Window
+{'Description'                  ,0,1, 7.00}, // Description
+{'ParamCount'                   ,0,0, 7.00}, // Parameter count
+{'Param'                        ,1,1, 7.00}, // Parameter <x>
+{'VersionContext'               ,0,0, 7.00}, // Version Context
+{'ImplementationName'           ,0,0, 7.00}, // Method implementation name
+{'Icon'                         ,0,0, 7.00}, // Icon
+{'QuickLaunch'                  ,0,0, 7.00}, // Quick Launch  
+{'Docu'                         ,1,0, 7.00}, // Docu
+{'DisabledIfLockedForEdit'      ,0,0, 7.16}, // Disabled if locked for edit
+{'ParamDef'                     ,0,0, 7.16}, // (memory buffer containing all parameter definitions)
+{'EnvironmentVariables'         ,0,0, 7.16}, // Environment Variable [ImplementedBy=EYE|Shell]
+{'ShellMode'                    ,0,0, 7.16}, // Shell Mode
+{'ShellName'                    ,0,0, 7.16}, // Shell Name [ShellMode=2]
+{'ParamHandling'                ,0,0, 7.16}, // Parameter Handling [ShellMode=2]
+{'Accessibility'                ,0,0, 7.14}, // Accessibility
+{'Abstract'                     ,0,0, 7.14}, // Abstract
+{'Final'                        ,0,0, 7.14}, // Final
+{'Delegate'                     ,0,0, 7.16}  // Delegate
 );
 
 
 @parentDefMetadataTable = Array(
-{'RefId'                    ,0,0,0},
-{'RefNameVisible'           ,0,0,1},
-{'RefNameIntern'            ,0,0,0},
-{'Description'              ,0,0,0},
-{'Multiple'                 ,0,0,0},
-{'ClassToReference'         ,0,0,0},
-{'SortIndex'                ,0,0,0},
-{'VersionContext'           ,0,0,0},
-{'PassVersionDate'          ,0,0,0},
-{'SearchMethods'            ,0,0,0},
-{'SearchAttributes'         ,0,0,0},
-{'PassMoveObject'           ,0,0,0},
-{'NewPrivileges'            ,0,1,0},
-{'NewPrivilegeBitmap'       ,1,0,0},
-{'DeletePrivileges'         ,0,1,0},
-{'DeletePrivilegesBitmap'   ,1,0,0},
-{'MovePrivileges'           ,0,1,0},
-{'MovePrivilegeBitmap'      ,1,0,0},
-{'SearchQuickLaunch'        ,0,0,0},
-{'Docu'                     ,0,1,0},
-{'VirtualReference'         ,0,0,0}
+{'RefId'                        ,0,0, 7.00}, // ID
+{'RefNameVisible'               ,0,1, 7.00}, // Name
+{'RefNameIntern'                ,0,0, 7.00}, // Internal (constraints) name
+{'Description'                  ,0,0, 7.00}, // Description
+{'Multiple'                     ,0,0, 7.00}, // Multiple value
+{'VirtualReference'             ,0,0, 7.00}, // Virtual Reference
+{'ClassToReference'             ,0,0, 7.00}, // Class reference
+{'SortIndex'                    ,0,0, 7.00}, // Sort ID
+{'PassVersionDate'              ,0,0, 7.00}, // Pass Version Date
+{'SearchMethods'                ,0,0, 7.00}, // Search Methods
+{'SearchAttributes'             ,0,0, 7.00}, // Serach Attributes
+{'NewPrivileges'                ,1,0, 7.00}, // New Privilege
+{'NewConstraints'               ,0,0, 7.16}, // New Constraints
+{'DeletePrivileges'             ,1,0, 7.00}, // Delete Privilege
+{'DeleteConstraints'            ,0,0, 7.16}, // Delete Constraints
+{'MovePrivileges'               ,1,0, 7.00}, // Move Privilege
+{'MoveConstraints'              ,0,0, 7.16}, // Move Constraints
+{'Docu'                         ,1,0, 7.00}  // Docu
 );
 
 
 @childDefMetadataTable = Array(
-{'RefId'                    ,0,0,0},
-{'RefNameVisible'           ,0,0,1},
-{'RefNameIntern'            ,0,0,0},
-{'Description'              ,0,0,0},
-{'Multiple'                 ,0,0,0},
-{'ClassToReference'         ,0,0,0},
-{'SortIndex'                ,0,0,0},
-{'VersionContext'           ,0,0,0},
-{'PassVersionDate'          ,0,0,0},
-{'SearchMethods'            ,0,0,0},
-{'SearchAttributes'         ,0,0,0},
-{'PassMoveObject'           ,0,0,0},
-{'NewPrivileges'            ,0,1,0},
-{'NewPrivilegeBitmap'       ,1,0,0},
-{'DeletePrivileges'         ,0,1,0},
-{'DeletePrivilegesBitmap'   ,1,0,0},
-{'MovePrivileges'           ,0,1,0},
-{'MovePrivilegeBitmap'      ,1,0,0},
-{'SearchQuickLaunch'        ,0,0,0},
-{'Docu'                     ,0,1,0}
+{'RefId'                        ,0,0, 7.00}, // ID
+{'RefNameVisible'               ,0,1, 7.00}, // Name
+{'RefNameIntern'                ,0,0, 7.00}, // Internal (constraints) name
+{'Description'                  ,0,0, 7.00}, // Description
+{'Multiple'                     ,0,0, 7.00}, // Multiple value
+{'ClassToReference'             ,0,0, 7.00}, // Class reference
+{'SortIndex'                    ,0,0, 7.00}, // Sort ID
+{'VersionContext'               ,0,0, 7.00}, // Version Context
+{'PassVersionDate'              ,0,0, 7.00}, // Pass Version Date
+{'SearchMethods'                ,0,0, 7.00}, // Search Methods
+{'SearchAttributes'             ,0,0, 7.00}, // Serach Attributes
+{'PassMoveObject'               ,0,0, 7.00}, // Pass Move Object
+{'NewPrivileges'                ,1,0, 7.00}, // New Privilege
+{'NewConstraints'               ,0,0, 7.16}, // New Constraints
+{'DeletePrivileges'             ,1,0, 7.00}, // Delete Privilege
+{'DeleteConstraints'            ,0,0, 7.16}, // Delete Constraints
+{'MovePrivileges'               ,1,0, 7.00}, // Move Privilege
+{'MoveConstraints'              ,0,0, 7.16}, // Move Constraints
+{'SearchQuickLaunch'            ,0,0, 7.00}, // Search Quick Launch
+{'Docu'                         ,1,0, 7.00}  // Docu
 );
 
 
 @stateDefMetadataTable = Array(
-{'StateId'                  ,0,0,0},
-{'StateNameVisible'         ,0,0,1},
-{'Icon'                     ,0,0,0},
-{'Background'               ,0,0,0},
-{'EntryActivities'          ,0,1,0},
-{'ExitActivities'           ,0,1,0},
-{'DoActivities'             ,0,1,0},
-{'Attributes'               ,0,1,0},
-{'ReceiveConstraints'       ,0,0,1},
-{'SendConstraints'          ,0,0,1},
-{'EntryEvent'               ,0,0,0},
-{'ExitEvent'                ,0,0,0},
-{'DoEvent'                  ,0,0,0},
-{'TransTargetState'         ,0,1,0},
-{'TransEventType'           ,0,1,0},
-{'TransActivity'            ,0,1,1},
-{'TransConstraints'         ,0,1,1},
-{'TransCallTriggerVisible'  ,0,1,1},
-{'TransCallTriggerIntern'   ,0,1,1},
-{'TransSendEvent'           ,0,1,0},
-{'TransTimeAbsolut'         ,0,1,0},
-{'TransTimeRelativ'         ,0,1,0},
-{'TransChangeTrigger'       ,0,1,1},
-{'TransStayConnected'       ,0,1,0},
-{'Docu'                     ,0,1,0},
-{'TransDocu'                ,0,1,0}
+{'StateId'                      ,0,0, 7.00}, // State ID
+{'StateNameVisible'             ,0,1, 7.00}, // State name
+{'Icon'                         ,0,0, 7.00}, // Icon
+{'Background'                   ,0,0, 7.00}, // Background color
+{'EntryActivities'              ,1,0, 7.00}, // Entry action
+{'ExitActivities'               ,1,0, 7.00}, // Exit action
+{'DoActivities'                 ,1,0, 7.00}, // Do activity
+{'Attributes'                   ,1,0, 7.00}, // Valid attributes
+{'ReceiveConstraints'           ,0,1, 7.00}, // Handle events if
+{'SendConstraints'              ,0,1, 7.00}, // Send modification events if
+{'EntryEvent'                   ,0,0, 7.00}, // Entry event
+{'ExitEvent'                    ,0,0, 7.00}, // Exit event
+{'DoEvent'                      ,0,0, 7.00}, // Do event
+{'Docu'                         ,1,0, 7.00}, // Docu
+
+
+{'TransTargetState'             ,1,0, 7.00}, // Target state  
+{'TransEventType'               ,1,0, 7.00}, // Event type
+{'TransActivity'                ,1,1, 7.00}, // Action
+{'TransConstraints'             ,1,1, 7.00}, // Guard
+{'TransCallTriggerVisible'      ,1,1, 7.00}, // Call trigger
+{'TransCallTriggerIntern'       ,1,1, 7.00}, // Internal call name
+{'TransSendEvent'               ,1,0, 7.00}, // Send Event
+{'TransTimeAbsolut'             ,1,0, 7.00}, // Time absolute
+{'TransTimeRelativ'             ,1,0, 7.00}, // Time relative
+{'TransChangeTrigger'           ,1,1, 7.00}, // Change trigger [TransEventType=Change]
+{'TransStayConnected'           ,1,0, 7.00}, // Desktop stay connected
+{'TransDocu'                    ,1,0, 7.00}, // Docu
+{'TransDisabledIfLockedForEdit' ,0,0, 7.16} // Disabled if locked for edit
 );
 
 
@@ -537,6 +549,7 @@ endif;
 @exportMethodData       = @classData      \$MethDef(.$ImplementationName like "BinaryExportExtended").$MethNameIntern;
 @exportMethodRcResource = @classRcResource\$MethDef(.$ImplementationName like "BinaryExportExtended").$MethNameIntern;
 @binVersion = ParseAmount(Left($CurrentNodeId.BuildNumber,4));
+
 
 // use build-in method BinaryExportExtended if supported by both frameworks and binaries
 if (IsInvalid(@exportMethodData) OR IsInvalid(@exportMethodRcResource) OR @binVersion < 7.12) then
@@ -725,10 +738,19 @@ if (@export_PQL OR @export_XML) then
       endif  
       select(@objType)
         case 1:
+
+          @propertyList = Array();
+          ForEach @entry in (@classMetadataTable)
+            @requiredBinVersion = @entry[4];
+            if (@binVersion >= @requiredBinVersion) then
+            @propertyList = InsertValue(@propertyList, '$'+@entry[1]);
+            endif
+          Next
+
           if (@includeVersionChain) then
-            $0($im):    @set = $search($classes of @objClass:.$internalname like @objName).$id,$internalname,$name,$created,$Modified,$Author,$Inheritance,$Logicalguid,$VersionGUID,$Enginestatus,$ObjectDescription,$Background,$Icon;
+            $0($im):    @set = $search($classes of @objClass:.$internalname like @objName).@propertyList;
           else
-            $0($v,$im): @set = $search($classes of @objClass:.$internalname like @objName).$id,$internalname,$name,$created,$Modified,$Author,$Inheritance,$Logicalguid,$VersionGUID,$Enginestatus,$ObjectDescription,$Background,$Icon;
+            $0($v,$im): @set = $search($classes of @objClass:.$internalname like @objName).@propertyList;
           endif  
           @classSetToExport = union(@set, @classSetToExport);
           break;
@@ -889,7 +911,7 @@ forEach @class in (@classSetToExport)
         @fileHeader = '';
         if (@generatePqlHeader) then
          // generate header information
-          @fileHeader += '/**'+@CR;
+          @fileHeader += '/'+@STAR+@STAR+@CR;
           @fileHeader += ' *   CodeExport '+@VERSION+@CR;
           @fileHeader += ' *   2010-2013 by TimoP'+@CR;
           @fileHeader += ' *   File generated at '+DateTime()+' by '+$CurrentUserId.$name+''+@CR; 
@@ -974,40 +996,54 @@ forEach @class in (@classSetToExport)
       @classFeature                 = @featureMappingTable[@idxFeature][1];
       @classFeatureXmlParentTagName = @featureMappingTable[@idxFeature][2];
       @classFeatureXmlEntryTagName  = @featureMappingTable[@idxFeature][3];
-  
+
       Select (@classFeature)
         Case 'ClassDef':
-          @featureProperties  = @class.$Name,$Internalname,$Logicalguid,$Enginestatus,$ObjectDescription,$Background,$Icon; 
           @featurePropertyTable = @classMetadataTable;
           break;
         Case 'AttrDef':
-          @featureProperties  = @class\$AttrDef.$AttrId,$AttrNameVisible,$AttrNameIntern,$Type,$DefaultValue,$Substitutions,$Description,$EditMode,$Constraints,$Multiple,
-              $ClassToReference,$SubstitutionsCount,$SortIndex,$TypeProperty,$EditProperty,$VisibleForEdit,$Range,$Format,$ViewPrivileges,$ViewConstraints,
-              $EditPrivileges,$EditConstraints,$ProgTypeProperties,$ContainsExpression,$TranslateContent,$Docu;
           @featurePropertyTable = @attributeMetadataTable;
           break;
         Case 'MethDef':
-          @featureProperties  = @class\$MethDef.$MethId,$MethNameIntern,$MethNameVisible,$DontInherit,$ValidForInstance,$ValidForTemplate,$ValidForClass,$ValidForState,
-              $ValidForAgent,$DefaultMethod,$Type,$PreConstraints,$PostConstraints,$Privileges,$VisibleInPopUp,$VisibleInToolBox,$LocalOnly,$ConnectToObject,
-              $ImplementedBy,$PrgName,$WrkDir,$LinePar,$WindowMode,$Description,$ParamCount,$Param,$ReturnType,$VersionContext,$ImplementationName,
-              $Icon,$QuickLaunch,$Docu;
           @featurePropertyTable = @methodMetadataTable;
           break;
         Case 'ParentDef':
-          @featureProperties  = @class\$ParentDef.$RefId,$RefNameVisible,$RefNameIntern,$Description,$Multiple,$ClassToReference,$SortIndex,$VersionContext,
-              $PassVersionDate,$SearchMethods,$SearchAttributes,$PassMoveObject,$NewPrivileges,$DeletePrivileges,$MovePrivileges,$SearchQuickLaunch,$Docu,$VirtualReference;
           @featurePropertyTable = @parentDefMetadataTable;
           break;
         Case 'ChildDef':
-          @featureProperties  = @class\$ChildDef.$RefId,$RefNameVisible,$RefNameIntern,$Description,$Multiple,$ClassToReference,$SortIndex,$VersionContext,
-              $PassVersionDate,$SearchMethods,$SearchAttributes,$PassMoveObject,$NewPrivileges,$DeletePrivileges,$MovePrivileges,$SearchQuickLaunch,$Docu;
           @featurePropertyTable = @childDefMetadataTable;
           break;
         Case 'StateDef':
-          @featureProperties  = @class\$StateDef.$StateId,$StateNameVisible,$Icon,$Background,$EntryActivities,$ExitActivities,$DoActivities,$Attributes,$ReceiveConstraints,
-              $SendConstraints,$EntryEvent,$ExitEvent,$DoEvent,$TransTargetState,$TransEventType,$TransActivity,$TransConstraints,$TransCallTriggerVisible,
-              $TransCallTriggerIntern,$TransSendEvent,$TransTimeAbsolut,$TransTimeRelativ,$TransChangeTrigger,$TransStayConnected,$Docu,$TransDocu;
           @featurePropertyTable = @stateDefMetadataTable;
+          break;
+      EndSelect
+
+      @propertyList = Array();
+      ForEach @entry in (@featurePropertyTable)
+        @requiredBinVersion = @entry[4];
+        if (@binVersion >= @requiredBinVersion) then
+          @propertyList = InsertValue(@propertyList, '$'+@entry[1]);
+        endif
+      Next
+
+      Select (@classFeature)
+        Case 'ClassDef':
+          @featureProperties  = @class.@propertyList;
+          break;
+        Case 'AttrDef': 
+          @featureProperties  = @class\$AttrDef.@propertyList;
+          break;
+        Case 'MethDef':
+          @featureProperties  = @class\$MethDef.@propertyList; 
+          break;
+        Case 'ParentDef':
+          @featureProperties  = @class\$ParentDef.@propertyList; 
+          break;
+        Case 'ChildDef':
+          @featureProperties  = @class\$ChildDef.@propertyList; 
+          break;
+        Case 'StateDef':
+          @featureProperties  = @class\$StateDef.@propertyList; 
           break;
       EndSelect
     
@@ -1017,112 +1053,106 @@ forEach @class in (@classSetToExport)
          @treeLevel++;
       endif
   
-      forEach @attribute in (@featureProperties)
+      forEach @attribute in (@featureProperties)      
         @xmlData += @treelevel*@TAB+"<"+@classFeatureXmlEntryTagName+">"+ @CR;
-        @treeLevel++;
-  
+        @treeLevel++; 
         @idxFeatureValues = 1;
         while (@idxFeatureValues <= (count(@featurePropertyTable))) 
           @property        = @featurePropertyTable[@idxFeatureValues][1];
-          @propertyIgnore  = @featurePropertyTable[@idxFeatureValues][2];
-          @propertyIsArray = @featurePropertyTable[@idxFeatureValues][3];       
-          @propertyEncode  = @featurePropertyTable[@idxFeatureValues][4];       
-  
-          if (@propertyIgnore==0) then
-              
-              @propertyDollar = "$"+@property;
-              @propertyValue = @attribute.@propertyDollar;
-              if (InArray({'AttrId','MethId','RefId','SortIndex'}, @property)) then
-                @propertyValue = @hexIdPrefix + format(@hexFormatString,@propertyValue);
-              endif
-              if (!isInvalid(@propertyValue)) then
-                @attrPropertyEntryCount = count(@propertyValue);
-                // ignore strange entries like "/@$!#0076f#ID" in privilege array
-                if (@property like '*Privileges') then
-                  if (left(@propertyValue[@attrPropertyEntryCount],2)!='$_') then
-                    @attrPropertyEntryCount--;
-                  endif
+          @propertyIsArray = @featurePropertyTable[@idxFeatureValues][2];       
+          @propertyEncode  = @featurePropertyTable[@idxFeatureValues][3];        
+          @propertyDollar  = '$'+@property;
+          @propertyValue   = @attribute.@propertyDollar;
+          if (InArray({'AttrId','MethId','RefId','SortIndex'}, @property)) then
+            @propertyValue = @hexIdPrefix + format(@hexFormatString,@propertyValue);
+          endif          
+          @attrPropertyEntryCount = count(@propertyValue);
+
+          // ignore strange entries like "/@$!#0076f#ID" in privilege array
+          if (@property like '*Privileges') then
+            if (@attrPropertyEntryCount>0 && left(@propertyValue[@attrPropertyEntryCount],2)!='$_') then
+              @attrPropertyEntryCount--;
+            endif
+          endif
+
+          @arrayIndex = 1;
+          @arrayXmlTagPropertyString = '';
+
+          While (@arrayIndex <= @attrPropertyEntryCount)
+            @propertyValueOrig = tostring(@propertyValue[@arrayIndex]);
+            @propertyValueNew = @propertyValueOrig;
+            @len_AttrPropertyValue = length(@propertyValueOrig);
+                           
+            if (@propertyIsArray) then
+               @arrayXmlTagPropertyString = ' idx="'+@arrayIndex+'"';
+            endif
+
+            // check if attribute property value has to be encoded or otherwise tranformed
+            if (@propertyEncode==1) then
+               @propertyValueNew=Base64Encode(@propertyValueNew,@xml_base64charsPerLine);
+              @propertyValueNew=Left(@propertyValueNew, Length(@propertyValueNew)-1);
+             elseif (@propertyEncode==2) then
+               @objref=@propertyValueNew;
+               @propertyValueNew=@objref.$logicalguid;
+             endif
+            
+            // check if we want a XML comment for this attribute property
+            @generateXmlComment = (@xmlComments AND @propertyEncode AND (@propertyValueNew!=''));
+            @multiLine = (length(@propertyValueNew) > @xml_base64charsPerLine) OR @generateXmlComment;
+           
+            if (@generateXmlComment) then
+              @propertyValueComment = @propertyValueOrig;
+              if (@propertyEncode==3) then
+                @propertyValueComment = @attrTypeTable[(toint(@propertyValue))];
+               endif
+           
+              // special handling for XML comments containing PQL code
+              @idx_PropertyPrefixPQLTable = 1;
+              @propertyContainsPQL = 0;
+              While (@idx_PropertyPrefixPQLTable <= @propertyPrefixPQLTableCount)
+                @propertyPrefixPQL = @propertyPrefixPQLTable[@idx_PropertyPrefixPQLTable];
+                @idx_PropertyPrefixPQLTable++;
+                @len_PropertyPrefixPQL = length(@propertyPrefixPQL);        
+                if (Left(@propertyValueOrig, @len_PropertyPrefixPQL) like @propertyPrefixPQL) then
+                   @propertyContainsPQL = 1;
+                   @propertyValueComment = Right(@propertyValueOrig, (@len_AttrPropertyValue - @len_PropertyPrefixPQL));
+                   @propertyValueComment = Substitute(@propertyValueComment, @PERCENT+'=', '=');
+                   break;
                 endif
-  
-                @arrayIndex = 1;
-                @arrayXmlTagPropertyString = '';
-                While (@arrayIndex <= @attrPropertyEntryCount)
-                  @propertyValueOrig = tostring(@propertyValue[@arrayIndex]);
-                  @propertyValueNew = @propertyValueOrig;
-                  @len_AttrPropertyValue = length(@propertyValueOrig);
-                                 
-                  if (@propertyIsArray) then
-                     @arrayXmlTagPropertyString = ' idx="'+@arrayIndex+'"';
-                  endif
-  
-                  // check if attribute property value has to be encoded or otherwise tranformed
-                  if (@propertyEncode==1) then
-                     @propertyValueNew=Base64Encode(@propertyValueNew,@xml_base64charsPerLine);
-                    @propertyValueNew=Left(@propertyValueNew, Length(@propertyValueNew)-1);
-                   elseif (@propertyEncode==2) then
-                     @objref=@propertyValueNew;
-                     @propertyValueNew=@objref.$logicalguid;
-                   endif
-                  
-                  // check if we want a XML comment for this attribute property
-                  @generateXmlComment = (@xmlComments AND @propertyEncode AND (@propertyValueNew!=''));
-                  @multiLine = (length(@propertyValueNew) > @xml_base64charsPerLine) OR @generateXmlComment;
-                 
-                  if (@generateXmlComment) then
-                    @propertyValueComment = @propertyValueOrig;
-                    if (@propertyEncode==3) then
-                      @propertyValueComment = @attrTypeTable[(toint(@propertyValue))];
-                     endif
-                 
-                    // special handling for XML comments containing PQL code
-                    @idx_PropertyPrefixPQLTable = 1;
-                    @propertyContainsPQL = 0;
-                    While (@idx_PropertyPrefixPQLTable <= @propertyPrefixPQLTableCount)
-                      @propertyPrefixPQL = @propertyPrefixPQLTable[@idx_PropertyPrefixPQLTable];
-                      @idx_PropertyPrefixPQLTable++;
-                      @len_PropertyPrefixPQL = length(@propertyPrefixPQL);        
-                      if (Left(@propertyValueOrig, @len_PropertyPrefixPQL) like @propertyPrefixPQL) then
-                         @propertyContainsPQL = 1;
-                         @propertyValueComment = Right(@propertyValueOrig, (@len_AttrPropertyValue - @len_PropertyPrefixPQL));
-                         @propertyValueComment = Substitute(@propertyValueComment, @PERCENT+'=', '=');
-                         break;
-                      endif
-                    Next 
-  
-                    // replace all "--" strings in comment as it would be treated as the end of the XML comment
-                    @xmlSpacePqlProperty = '';
-                    if (@propertyContainsPQL) then
-                      @xmlSpacePqlProperty = @CR;
-                    endif
-  
-                    @propertyValueComment = @xml_commentPrefix+@xmlSpacePqlProperty+substitute(@propertyValueComment,"--",@xml_minusminusReplacement)+@xmlSpacePqlProperty+@xml_commentSuffix; 
-                  else
-                    @propertyValueComment = '';
-                  endif               
-                  
-                  @xmlTagLineEnd = '';
-                  @xmlTagLineEndComment ='';
-                  @newIndent = '';
-                  @xmlSpaceTagClose = '';          
-                  if (@multiLine) then
-                    @xmlTagLineEnd = @CR;
-                    @newIndent = (@treelevel+1)*@TAB;
-                    @xmlTagLineEndComment = @CR;
-                    @xmlSpaceTagClose = @CR + @treelevel*@TAB;
-                  endif
-  
-                  @line = @treelevel*@TAB+
-                          '<'+@property+@arrayXmlTagPropertyString+'>'+@xmlTagLineEnd+
-                          @newIndent+@propertyValueComment+@xmlTagLineEndComment+
-                          @newIndent+@propertyValueNew+@xmlSpaceTagClose+
-                          '</'+@property+'>'+@CR;
-   
-                  @xmlData += @line;
-                  @arrayIndex++;
-                next // @arrayIndex <= @attrPropertyEntryCount
-              endif // !isInvalid(@propertyValue)
-  
-          endif // @propertyIgnore==0
+              Next 
+
+              // replace all "--" strings in comment as it would be treated as the end of the XML comment
+              @xmlSpacePqlProperty = '';
+              if (@propertyContainsPQL) then
+                @xmlSpacePqlProperty = @CR;
+              endif
+
+              @propertyValueComment = @xml_commentPrefix+@xmlSpacePqlProperty+substitute(@propertyValueComment,"--",@xml_minusminusReplacement)+@xmlSpacePqlProperty+@xml_commentSuffix; 
+            else
+              @propertyValueComment = '';
+            endif               
+            
+            @xmlTagLineEnd = '';
+            @xmlTagLineEndComment ='';
+            @newIndent = '';
+            @xmlSpaceTagClose = '';          
+            if (@multiLine) then
+              @xmlTagLineEnd = @CR;
+              @newIndent = (@treelevel+1)*@TAB;
+              @xmlTagLineEndComment = @CR;
+              @xmlSpaceTagClose = @CR + @treelevel*@TAB;
+            endif
+
+            @line = @treelevel*@TAB+
+                    '<'+@property+@arrayXmlTagPropertyString+'>'+@xmlTagLineEnd+
+                    @newIndent+@propertyValueComment+@xmlTagLineEndComment+
+                    @newIndent+@propertyValueNew+@xmlSpaceTagClose+
+                    '</'+@property+'>'+@CR;
+
+            @xmlData += @line;
+            @arrayIndex++;
+          next // @arrayIndex <= @attrPropertyEntryCount
+        
           @idxFeatureValues++;
         next // @idxFeatureValues<(count(@featurePropertyTable)+1)
         @treeLevel--;
