@@ -9,7 +9,7 @@
  *    "Y8888P"   "Y88P"   "Y88888  "Y8888  8888888888 888  888 88888P"   "Y88P"  888      "Y888
  *                                                             888
  *                                                             888
- *                                                             888        v4.0
+ *                                                             888        v4.1
  *                                                             
  * created by TimoP, initial version released 03/2010, 
  * credits to RalfH / ManfredG / MarcoP for some nice ideas and testing
@@ -197,7 +197,7 @@
 
 
 // constants
-@VERSION = "v4.0";
+@VERSION = "v4.1";
 @CR = char(10);
 @CRLF = char(10)+char(13);
 @TAB  = char(9);
@@ -338,7 +338,7 @@ endif
 );
 
 
-// {Property Name, Ignore [0,1], IsArray [0,1], Base64Encode [0,1], BinVersion Required}
+// {Property Name, IsArray [0,1], Base64Encode [0,1], BinVersion Required}
 @attributeMetadataTable = Array(
 {'AttrId'                       ,0,0, 7.00}, // ID
 {'AttrNameVisible'              ,0,1, 7.00}, // Name
@@ -462,6 +462,23 @@ endif
 );
 
 
+@stateTransDefMetadataTable = Array(
+{'TransTargetState'             ,1,0, 7.00}, // Target state  
+{'TransEventType'               ,1,0, 7.00}, // Event type
+{'TransActivity'                ,1,1, 7.00}, // Action
+{'TransConstraints'             ,1,1, 7.00}, // Guard
+{'TransCallTriggerVisible'      ,1,1, 7.00}, // Call trigger
+{'TransCallTriggerIntern'       ,1,1, 7.00}, // Internal call name
+{'TransSendEvent'               ,1,0, 7.00}, // Send Event
+{'TransTimeAbsolut'             ,1,0, 7.00}, // Time absolute
+{'TransTimeRelativ'             ,1,0, 7.00}, // Time relative
+{'TransChangeTrigger'           ,1,1, 7.00}, // Change trigger [TransEventType=Change]
+{'TransStayConnected'           ,1,0, 7.00}, // Desktop stay connected
+{'TransDocu'                    ,1,0, 7.00}, // Docu
+{'TransDisabledIfLockedForEdit' ,0,0, 7.16}  // Disabled if locked for edit
+);
+
+
 @stateDefMetadataTable = Array(
 {'StateId'                      ,0,0, 7.00}, // State ID
 {'StateNameVisible'             ,0,1, 7.00}, // State name
@@ -476,25 +493,22 @@ endif
 {'EntryEvent'                   ,0,0, 7.00}, // Entry event
 {'ExitEvent'                    ,0,0, 7.00}, // Exit event
 {'DoEvent'                      ,0,0, 7.00}, // Do event
-{'Docu'                         ,1,0, 7.00}, // Docu
-
-
-{'TransTargetState'             ,1,0, 7.00}, // Target state  
-{'TransEventType'               ,1,0, 7.00}, // Event type
-{'TransActivity'                ,1,1, 7.00}, // Action
-{'TransConstraints'             ,1,1, 7.00}, // Guard
-{'TransCallTriggerVisible'      ,1,1, 7.00}, // Call trigger
-{'TransCallTriggerIntern'       ,1,1, 7.00}, // Internal call name
-{'TransSendEvent'               ,1,0, 7.00}, // Send Event
-{'TransTimeAbsolut'             ,1,0, 7.00}, // Time absolute
-{'TransTimeRelativ'             ,1,0, 7.00}, // Time relative
-{'TransChangeTrigger'           ,1,1, 7.00}, // Change trigger [TransEventType=Change]
-{'TransStayConnected'           ,1,0, 7.00}, // Desktop stay connected
-{'TransDocu'                    ,1,0, 7.00}, // Docu
-{'TransDisabledIfLockedForEdit' ,0,0, 7.16} // Disabled if locked for edit
+{'Docu'                         ,1,0, 7.00}  // Docu
 );
+ForEach @elem in (@stateTransDefMetadataTable)
+  @stateDefMetadataTable = InsertValue(@stateDefMetadataTable, @elem); // AppendArray not available in v702
+Next
 
 
+@methodParamDefMetadataTable = Array(
+{'InternalName'                 ,0,0, 7.16}, // Name
+{'Type'                         ,0,0, 7.16}, // Type
+{'Multiple'                     ,0,0, 7.16}, // Multiple value
+{'Default'                      ,1,1, 7.16}, // Default [Optional=true]
+{'Optional'                     ,0,0, 7.16}, // Optional
+{'Description'                  ,0,1, 7.16}, // Description
+{'DelegationAnchor'             ,0,0, 7.16}  // Delegation Anchor
+);
 
 
 // variable declarations
@@ -1016,6 +1030,8 @@ forEach @class in (@classSetToExport)
         Case 'StateDef':
           @featurePropertyTable = @stateDefMetadataTable;
           break;
+        Case 'MethodParamDef':
+          @featurePropertyTable = @methodParamDefMetadataTable;
       EndSelect
 
       @propertyList = Array();
@@ -1043,8 +1059,10 @@ forEach @class in (@classSetToExport)
           @featureProperties  = @class\$ChildDef.@propertyList; 
           break;
         Case 'StateDef':
-          @featureProperties  = @class\$StateDef.@propertyList; 
+          @featureProperties  = @class\$StateDef.@propertyList;
           break;
+        Case 'MethodParamDef':
+          @featureProperties  = @class\$MethDef(.$MethId==@currentMethodId).@propertyList;
       EndSelect
     
       @treeLevel++;
@@ -1060,7 +1078,10 @@ forEach @class in (@classSetToExport)
         while (@idxFeatureValues <= (count(@featurePropertyTable))) 
           @property        = @featurePropertyTable[@idxFeatureValues][1];
           @propertyIsArray = @featurePropertyTable[@idxFeatureValues][2];       
-          @propertyEncode  = @featurePropertyTable[@idxFeatureValues][3];        
+          @propertyEncode  = @featurePropertyTable[@idxFeatureValues][3];
+
+          //@currentMethodId = ...
+
           @propertyDollar  = '$'+@property;
           @propertyValue   = @attribute.@propertyDollar;
           if (InArray({'AttrId','MethId','RefId','SortIndex'}, @property)) then
