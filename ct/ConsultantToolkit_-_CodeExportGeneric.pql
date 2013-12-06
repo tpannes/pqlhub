@@ -125,6 +125,8 @@
  *   v4.0:
  *       - added support for new system attributes / properties: $Abstract, $Final, $Delegate, $Accessibility  
  *       - added mapping between system attributes and binary versions for backward compatibilty
+ *   v4.1:
+ *       - added support for method parameters ($ParamDef) defined in class editor
  *
  *
  *   
@@ -209,6 +211,9 @@
 @OBJECT_TYPE_TABLE = array('classes', 'templates', 'instances');
 @PQLPARAMPREFIX = 'PQLStatement=';
 @EDITMODE_PQLSTATEMENT = 'PQL Statement';
+@METHOD_PARAMS_PROPERTY_NAME = '$ParamDef';
+@EXECUTION_MODE_DEFAULT       = 1;
+@EXECUTION_MODE_METHOD_PARAMS = 2;
 @FILE_EXTENSION_PQL = '.pql';
 @FILE_EXTENSION_XML = '.xml';
 @FILENAME_FORBIDDEN_CHARS = array('?','/','\','<','>',':','"','|','*',@PERCENT);
@@ -305,13 +310,14 @@ endif
 // Class feature table
 // {  Name      ,   XML list tag name  ,   XML entry tag name    }  
 @featureMappingTable = Array(
-{'ClassDef'      ,   ''                ,   'ClassDefinition'      },
-{'AttrDef'       ,   'AttributeList'   ,   'AttributeDefinition'  },
-{'MethDef'       ,   'MethodList'      ,   'MethodDefinition'     },
-{'ParentDef'     ,   'ParentRefList'   ,   'ParentRefDefinition'  },
-{'ChildDef'      ,   'ChildRefList'    ,   'ChildRefDefinition'   },
-{'StateDef'      ,   'StateList'       ,   'StateDefinition'      },
-{'StateTransDef' ,   'StateTransList'  ,   'StateTransDefinition' }
+{'ClassDef'         ,   ''                  ,   'ClassDefinition'       },
+{'AttrDef'          ,   'AttributeList'     ,   'AttributeDefinition'   },
+{'MethDef'          ,   'MethodList'        ,   'MethodDefinition'      },
+{'ParentDef'        ,   'ParentRefList'     ,   'ParentRefDefinition'   },
+{'ChildDef'         ,   'ChildRefList'      ,   'ChildRefDefinition'    },
+{'StateDef'         ,   'StateList'         ,   'StateDefinition'       },
+{'StateTransDef'    ,   'StateTransList'    ,   'StateTransDefinition'  },
+{'MethodParamDef'   ,   'MethodParameters'  ,   'MethodParamDefinition' }
 );
 
 // Class feature metadata tables
@@ -510,6 +516,8 @@ Next
 {'DelegationAnchor'             ,0,0, 7.16}  // Delegation Anchor
 );
 
+
+Option ExecutionFlags = $io, $im;
 
 // variable declarations
 @self = $self.$id,$node;
@@ -1004,6 +1012,7 @@ forEach @class in (@classSetToExport)
     @xmlData = '';
     @xmlData += @treelevel*@TAB+'<class ParentClass="'+@parentClassInternalName+'" TreeLevel="'+@classTreelevel+'">'+@CR;
 
+    @executionMode = @EXECUTION_MODE_DEFAULT;
     @idxFeature = 1;
     while (@idxFeature<count(@featureMappingTable))
 
@@ -1071,17 +1080,27 @@ forEach @class in (@classSetToExport)
          @treeLevel++;
       endif
   
-      forEach @attribute in (@featureProperties)      
+      @idxEntity = 1;
+      While (@idxEntity<=Count(@featureProperties))  
+
+
         @xmlData += @treelevel*@TAB+"<"+@classFeatureXmlEntryTagName+">"+ @CR;
         @treeLevel++; 
         @idxFeatureValues = 1;
-        while (@idxFeatureValues <= (count(@featurePropertyTable))) 
+        @attribute = @featureProperties[@idxEntity];
+
+        While (@idxFeatureValues <= (count(@featurePropertyTable))) 
           @property        = @featurePropertyTable[@idxFeatureValues][1];
+
+          // for method params processing, exit loop and store current index to return later
+          if (@property==@METHOD_PARAMS_PROPERTY_NAME) then
+            @idxLastProcessedProperty = @idxFeatureValues;
+            @executionMode = @EXECUTION_MODE_METHOD_PARAMS;
+            break; // go back to method loop (as $ParamDef is only defined in the context of a method)
+          endif
+
           @propertyIsArray = @featurePropertyTable[@idxFeatureValues][2];       
           @propertyEncode  = @featurePropertyTable[@idxFeatureValues][3];
-
-          //@currentMethodId = ...
-
           @propertyDollar  = '$'+@property;
           @propertyValue   = @attribute.@propertyDollar;
           if (InArray({'AttrId','MethId','RefId','SortIndex'}, @property)) then
@@ -1176,9 +1195,16 @@ forEach @class in (@classSetToExport)
         
           @idxFeatureValues++;
         next // @idxFeatureValues<(count(@featurePropertyTable)+1)
+
+        // for method params processing, exit loop and store current index to return later
+        if (@executionMode==@EXECUTION_MODE_METHOD_PARAMS) then
+          @idxLastProcessedEntity = @idxEntity;
+          break; // go back to main loop for class features
+        endif
         @treeLevel--;
         @xmlData += @treelevel*@TAB+"</"+@classFeatureXmlEntryTagName+">" + @CR;
-      next // @attribute in (@featureProperties)
+        @idxEntity++;
+      next // @idxEntity<=Count(@featureProperties)
       @treeLevel--;
       if (@classFeatureXmlParentTagName != "") then
           @xmlData += @treelevel*@TAB+"</"+@classFeatureXmlParentTagName+">" + @CR;
