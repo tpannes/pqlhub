@@ -9,7 +9,7 @@
  *    "Y8888P"   "Y88P"   "Y88888  "Y8888  8888888888 888  888 88888P"   "Y88P"  888      "Y888
  *                                                             888
  *                                                             888
- *                                                             888        v4.1
+ *                                                             888        v4.2
  *                                                             
  * created by TimoP, initial version released 03/2010, 
  * credits to RalfH / ManfredG / MarcoP for some nice ideas and testing
@@ -126,6 +126,10 @@
  *       - added support for new system attributes / properties: $Abstract, $Final, $Delegate, $Accessibility  
  *       - added mapping between system attributes and binary versions for backward compatibilty
  *   v4.1:
+ *       - extended XML comments to support visible names for OID properties (e.g. $Author), $TransTargetState and $TransEventTypes
+ *       - write user-defined search string for code checks to header line of CSV file (if available)
+ *       - empty properties are now always exported into XMLs and properly formatted 
+ *   v4.2:
  *       - added support for method parameters ($ParamDef) defined in class editor
  *
  *
@@ -140,7 +144,7 @@
 
 
 //====BEGIN_CONFIGURATION=========================================================================================================================
-
+Option ExecutionFlags = $io, $im;
 
 // Basic settings
 // (number in square brackets shows to which parameter the variable corresponds when script is called from external)
@@ -199,7 +203,7 @@
 
 
 // constants
-@VERSION = "v4.1";
+@VERSION = "v4.2";
 @CR = char(10);
 @CRLF = char(10)+char(13);
 @TAB  = char(9);
@@ -211,7 +215,7 @@
 @OBJECT_TYPE_TABLE = array('classes', 'templates', 'instances');
 @PQLPARAMPREFIX = 'PQLStatement=';
 @EDITMODE_PQLSTATEMENT = 'PQL Statement';
-@METHOD_PARAMS_PROPERTY_NAME = '$ParamDef';
+@METHOD_PARAMS_PROPERTY_NAME = 'ParamDef';
 @EXECUTION_MODE_DEFAULT       = 1;
 @EXECUTION_MODE_METHOD_PARAMS = 2;
 @FILE_EXTENSION_PQL = '.pql';
@@ -219,6 +223,8 @@
 @FILENAME_FORBIDDEN_CHARS = array('?','/','\','<','>',':','"','|','*',@PERCENT);
 @DIR_SEPARATOR_WINDOWS = '\';
 @DIR_SEPARATOR_UNIX    = '/';
+@CSV_HEADER_LINE       = 'FILENAME;LINE;POSITION;MESSAGE_TYPE;CODE_CONTEXT';
+@CSV_HEADER_SEARCHTEXT = 'SearchExpression: ';
 @hexFormatString='@v.X@'; // for method IDs
 @hexIdPrefix = "0x";
 @MSG_INFO    = 'PUGM0002I';
@@ -262,7 +268,14 @@ if (@externalCall) then
       @xmlComments                 = (@flags & 16) > 0;
       @xmlCreateCombinedOutputFile = (@flags & 32) > 0;
     endif
-    if ($param6!=$invalid) then @searchExpressions = array({$param6, "match", 32, 32}); endif
+    if ($param6!=$invalid) then
+      @userDefinedSearchExpression = $param6; 
+      @searchExpressions  = Array({@userDefinedSearchExpression, "match", 32, 32});
+      @csvLastColumnIndex = RPos(';', @CSV_HEADER_LINE);
+      @csvLastColumnName  = Right(@CSV_HEADER_LINE, Length(@CSV_HEADER_LINE)- @csvLastColumnIndex);
+      @csvLastColumnNameNew = '"' + @csvLastColumnName + ' ### '+@CSV_HEADER_SEARCHTEXT + Substitute(@userDefinedSearchExpression, '"', '""') + ' ###"';
+      @CSV_HEADER_LINE = Substitute(@CSV_HEADER_LINE, @csvLastColumnName, @csvLastColumnNameNew);
+    endif
     if ($param7!=$invalid) then 
       @filenameOptions   = split($param7,@filenameOptionsSeparator);
       @classPrefix             = @filenameOptions[1];
@@ -285,6 +298,10 @@ endif
 // human readable description of attibute types
 @attrTypeTable = Array('1','2','3','4','Integer','6','Float','String','9','Memory','Objref','12','Date/Time','14','Binary','Boolean','Binary remote',
                        '18','19','20','21','22','23','24','25','26','27','28','29','30','31','Date','Time','34','35','36','GUID','','AttrDefKey');
+
+// human readable description of state transistion event types ($TransTargetState is zero based, so it has to be incremented by 1 to match with table)
+@transEventTypeTable = Array('Call','Absolute time','Relative time','Change','Call tool','Call material','Program');
+
 
 // prefixes in attribute properties that indicate PQL code
 @propertyPrefixPQLTable      = Array('Pqlstatement=', 'PQL:');
@@ -310,18 +327,20 @@ endif
 // Class feature table
 // {  Name      ,   XML list tag name  ,   XML entry tag name    }  
 @featureMappingTable = Array(
-{'ClassDef'         ,   ''                  ,   'ClassDefinition'       },
-{'AttrDef'          ,   'AttributeList'     ,   'AttributeDefinition'   },
-{'MethDef'          ,   'MethodList'        ,   'MethodDefinition'      },
-{'ParentDef'        ,   'ParentRefList'     ,   'ParentRefDefinition'   },
-{'ChildDef'         ,   'ChildRefList'      ,   'ChildRefDefinition'    },
-{'StateDef'         ,   'StateList'         ,   'StateDefinition'       },
-{'StateTransDef'    ,   'StateTransList'    ,   'StateTransDefinition'  },
-{'MethodParamDef'   ,   'MethodParameters'  ,   'MethodParamDefinition' }
+{'ClassDef'         ,   ''                ,   'ClassDefinition'      },
+{'AttrDef'          ,   'AttributeList'   ,   'AttributeDefinition'  },
+{'MethDef'          ,   'MethodList'      ,   'MethodDefinition'     },
+{'ParentDef'        ,   'ParentRefList'   ,   'ParentRefDefinition'  },
+{'ChildDef'         ,   'ChildRefList'    ,   'ChildRefDefinition'   },
+{'StateDef'         ,   'StateList'       ,   'StateDefinition'      },
+{'StateTransDef'    ,   'StateTransList'  ,   'StateTransDefinition' },
+{'MethodParamDef'   ,   'MethodParamList' ,   'MethodParam'} // has to be at the end 
 );
 
-// Class feature metadata tables
-// {Property Name, IsArray [0,1], Encode [0,1=B64,2=LGUID]}
+
+// Property tables
+// {Property Name, IsArray [0,1], OutputMode, BinVersion Required}
+// OutputMode: 0=default (no special handling), 1=Base64, 2=LGUID, 3=AttrTypeName, 4=TransEventTypeName, 5=TransTargetStateName, 6=VisibleNameForOid]
 @classMetadataTable = Array(
 {'Id'                           ,0,0, 7.00}, // Object ID 
 {'Name'                         ,0,1, 7.00}, // Visible Name
@@ -331,7 +350,7 @@ endif
 {'Constraints'                  ,0,0, 7.00}, // Constraints      
 {'Created'                      ,0,0, 7.00}, // Creation Date
 {'Modified'                     ,0,0, 7.00}, // Modify Date
-{'Author'                       ,0,0, 7.00}, // Author
+{'Author'                       ,0,6, 7.00}, // Author
 {'Inheritance'                  ,1,0, 7.00}, // Inheritance
 {'Enginestatus'                 ,0,0, 7.00}, // Initial state
 {'ObjectDescription'            ,0,1, 7.00}, // Object Description
@@ -344,7 +363,6 @@ endif
 );
 
 
-// {Property Name, IsArray [0,1], Base64Encode [0,1], BinVersion Required}
 @attributeMetadataTable = Array(
 {'AttrId'                       ,0,0, 7.00}, // ID
 {'AttrNameVisible'              ,0,1, 7.00}, // Name
@@ -469,8 +487,8 @@ endif
 
 
 @stateTransDefMetadataTable = Array(
-{'TransTargetState'             ,1,0, 7.00}, // Target state  
-{'TransEventType'               ,1,0, 7.00}, // Event type
+{'TransTargetState'             ,1,5, 7.00}, // Target state  
+{'TransEventType'               ,1,4, 7.00}, // Event type
 {'TransActivity'                ,1,1, 7.00}, // Action
 {'TransConstraints'             ,1,1, 7.00}, // Guard
 {'TransCallTriggerVisible'      ,1,1, 7.00}, // Call trigger
@@ -507,7 +525,7 @@ Next
 
 
 @methodParamDefMetadataTable = Array(
-{'InternalName'                 ,0,0, 7.16}, // Name
+{'InternalName'                 ,0,1, 7.16}, // Name
 {'Type'                         ,0,0, 7.16}, // Type
 {'Multiple'                     ,0,0, 7.16}, // Multiple value
 {'Default'                      ,1,1, 7.16}, // Default [Optional=true]
@@ -516,8 +534,6 @@ Next
 {'DelegationAnchor'             ,0,0, 7.16}  // Delegation Anchor
 );
 
-
-Option ExecutionFlags = $io, $im;
 
 // variable declarations
 @self = $self.$id,$node;
@@ -529,7 +545,7 @@ Option ExecutionFlags = $io, $im;
 @codeExportTable      = Array();
 @codeExportTableEntry = Array(); // [filename] [file content | 'DFACODE'] [file header | <RESOURCE_OID>]
 @nonUniqueCLasses     = Array();
-@codeCheckMessageTable = 'FILENAME;LINE;POSITION;MESSAGE_TYPE;CODE_CONTEXT'+@CR;
+@codeCheckMessageTable = @CSV_HEADER_LINE+@CR;
 @codeCheckMessageCount = 0;
 @xml_author                = $CurrentUserId.$name;
 @xml_date                  = DateTime(); 
@@ -1012,9 +1028,20 @@ forEach @class in (@classSetToExport)
     @xmlData = '';
     @xmlData += @treelevel*@TAB+'<class ParentClass="'+@parentClassInternalName+'" TreeLevel="'+@classTreelevel+'">'+@CR;
 
-    @executionMode = @EXECUTION_MODE_DEFAULT;
+    @executionMode            = @EXECUTION_MODE_DEFAULT;
+    @currentMethodId          = $invalid;
+    @idxLastProcessedFeature  = $invalid;
+    @idxLastProcessedEntity   = $invalid;
+    @idxLastProcessedProperty = $invalid;
+
     @idxFeature = 1;
-    while (@idxFeature<count(@featureMappingTable))
+    @abortLoop = false;
+    while (@idxFeature<=Count(@featureMappingTable)) // loop 1: class entities (method list, attribute list, ...)
+
+      if (@executionMode==@EXECUTION_MODE_METHOD_PARAMS) then
+          @idxFeature = Count(@featureMappingTable); // MethodParamDef
+          @abortLoop = false;
+      endif
 
       @classFeature                 = @featureMappingTable[@idxFeature][1];
       @classFeatureXmlParentTagName = @featureMappingTable[@idxFeature][2];
@@ -1044,6 +1071,7 @@ forEach @class in (@classSetToExport)
       EndSelect
 
       @propertyList = Array();
+      
       ForEach @entry in (@featurePropertyTable)
         @requiredBinVersion = @entry[4];
         if (@binVersion >= @requiredBinVersion) then
@@ -1071,7 +1099,7 @@ forEach @class in (@classSetToExport)
           @featureProperties  = @class\$StateDef.@propertyList;
           break;
         Case 'MethodParamDef':
-          @featureProperties  = @class\$MethDef(.$MethId==@currentMethodId).@propertyList;
+          @featureProperties  = fromMem(@class\$MethDef(.$MethId==@currentMethodId).$ParamDef);
       EndSelect
     
       @treeLevel++;
@@ -1080,33 +1108,62 @@ forEach @class in (@classSetToExport)
          @treeLevel++;
       endif
   
-      @idxEntity = 1;
-      While (@idxEntity<=Count(@featureProperties))  
+      if (@idxLastProcessedEntity) then
+        @idxEntity = @idxLastProcessedEntity;
+        @idxLastProcessedEntity = $invalid;
+      else
+        @idxEntity = 1;
+      endif
+      While (@idxEntity<=Count(@featureProperties)) // loop 2: single attribute, method, ...
 
 
         @xmlData += @treelevel*@TAB+"<"+@classFeatureXmlEntryTagName+">"+ @CR;
         @treeLevel++; 
-        @idxFeatureValues = 1;
         @attribute = @featureProperties[@idxEntity];
+        if (@classFeature=='MethDef') then
+          @currentMethodId = @attribute.$MethId;
+        else
+          @currentMethodId = $invalid;
+        endif
 
-        While (@idxFeatureValues <= (count(@featurePropertyTable))) 
-          @property        = @featurePropertyTable[@idxFeatureValues][1];
+        if (@idxLastProcessedProperty) then
+          @idxFeatureValues = @idxLastProcessedProperty;
+          @idxLastProcessedProperty = $invalid;
+        else
+          @idxFeatureValues = 1;
+        endif
+
+        While (@idxFeatureValues <= (count(@featurePropertyTable))) // loop 3:  properties
+          @property = @featurePropertyTable[@idxFeatureValues][1];
 
           // for method params processing, exit loop and store current index to return later
-          if (@property==@METHOD_PARAMS_PROPERTY_NAME) then
+          if (@property==@METHOD_PARAMS_PROPERTY_NAME AND @classFeature=='MethDef') then
             @idxLastProcessedProperty = @idxFeatureValues;
             @executionMode = @EXECUTION_MODE_METHOD_PARAMS;
+            @abortLoop = true;
             break; // go back to method loop (as $ParamDef is only defined in the context of a method)
           endif
 
           @propertyIsArray = @featurePropertyTable[@idxFeatureValues][2];       
           @propertyEncode  = @featurePropertyTable[@idxFeatureValues][3];
-          @propertyDollar  = '$'+@property;
+          @propertyPrefix = '$';
+          if (@executionMode==@EXECUTION_MODE_METHOD_PARAMS) then
+            @propertyPrefix = '';
+          endif
+          @propertyDollar  = @propertyPrefix+@property;
           @propertyValue   = @attribute.@propertyDollar;
+
           if (InArray({'AttrId','MethId','RefId','SortIndex'}, @property)) then
             @propertyValue = @hexIdPrefix + format(@hexFormatString,@propertyValue);
           endif          
           @attrPropertyEntryCount = count(@propertyValue);
+
+          // quick exit for empty scalar values
+          if (!@propertyIsArray AND (@attrPropertyEntryCount==0 OR ToString(@propertyValue)=='')) then
+            @xmlData += @treelevel*@TAB+'<'+@property+'></'+@property+'>'+@CR;
+            @idxFeatureValues++;
+            next;
+          endif
 
           // ignore strange entries like "/@$!#0076f#ID" in privilege array
           if (@property like '*Privileges') then
@@ -1127,25 +1184,47 @@ forEach @class in (@classSetToExport)
                @arrayXmlTagPropertyString = ' idx="'+@arrayIndex+'"';
             endif
 
+
+            // quick exit for empty values
+            if (ToString(@propertyValueOrig)=='' OR @propertyValueOrig==$invalid) then
+              @xmlData += @treelevel*@TAB+'<'+@property+@arrayXmlTagPropertyString+'></'+@property+'>'+@CR;
+              @arrayIndex++;
+              next;
+            endif
+
+
             // check if attribute property value has to be encoded or otherwise tranformed
             if (@propertyEncode==1) then
                @propertyValueNew=Base64Encode(@propertyValueNew,@xml_base64charsPerLine);
               @propertyValueNew=Left(@propertyValueNew, Length(@propertyValueNew)-1);
-             elseif (@propertyEncode==2) then
-               @objref=@propertyValueNew;
-               @propertyValueNew=@objref.$logicalguid;
-             endif
+            elseif (@propertyEncode==2) then
+              @objref=@propertyValueNew;
+              @propertyValueNew=@objref.$logicalguid;
+            endif
             
             // check if we want a XML comment for this attribute property
-            @generateXmlComment = (@xmlComments AND @propertyEncode AND (@propertyValueNew!=''));
-            @multiLine = (length(@propertyValueNew) > @xml_base64charsPerLine) OR @generateXmlComment;
-           
+            @generateXmlComment = (@xmlComments AND @propertyEncode);// AND (@propertyValueNew!=''));
+            @multiLine = (length(@propertyValueNew) > @xml_base64charsPerLine) OR @generateXmlComment;      
             if (@generateXmlComment) then
               @propertyValueComment = @propertyValueOrig;
-              if (@propertyEncode==3) then
-                @propertyValueComment = @attrTypeTable[(toint(@propertyValue))];
-               endif
-           
+              Select (@propertyEncode)
+                Case 0: break;
+                Case 3: 
+                  @propertyValueComment = @attrTypeTable[Toint(@propertyValueOrig)];
+                  break;
+                Case 4:
+                  @propertyValueComment = @transEventTypeTable[Toint(@propertyValueOrig)+1];
+                  break;
+                Case 5:
+                  @propertyValueComment = @class\$StateDef(.$StateId==Toint(@propertyValueOrig)).$StateNameVisible;
+                  break;
+                Case 6:
+                  if (IsObjRef(@propertyValue) AND @propertyValue!=0.0.0.ffff) then
+                    @propertyValueComment = @attribute\@propertyDollar.$name;
+                  endif
+                  break;
+              EndSelect
+              
               // special handling for XML comments containing PQL code
               @idx_PropertyPrefixPQLTable = 1;
               @propertyContainsPQL = 0;
@@ -1194,24 +1273,41 @@ forEach @class in (@classSetToExport)
           next // @arrayIndex <= @attrPropertyEntryCount
         
           @idxFeatureValues++;
-        next // @idxFeatureValues<(count(@featurePropertyTable)+1)
+        next // @idxFeatureValues<(count(@featurePropertyTable)+1) // END loop 3
 
         // for method params processing, exit loop and store current index to return later
-        if (@executionMode==@EXECUTION_MODE_METHOD_PARAMS) then
+        if (@abortLoop) then
           @idxLastProcessedEntity = @idxEntity;
           break; // go back to main loop for class features
         endif
+
+        if (@executionMode == @EXECUTION_MODE_METHOD_PARAMS) then
+          @idxEntity = @idxLastProcessedEntity;
+        endif
+
         @treeLevel--;
         @xmlData += @treelevel*@TAB+"</"+@classFeatureXmlEntryTagName+">" + @CR;
         @idxEntity++;
-      next // @idxEntity<=Count(@featureProperties)
+      next // @idxEntity<=Count(@featureProperties) // END loop 2
+
       @treeLevel--;
+      // for method params processing, exit loop and store current index to return later
+      if (@abortLoop) then     
+        @idxLastProcessedFeature = @idxFeature;
+        next;
+      endif
+
+      if (@executionMode == @EXECUTION_MODE_METHOD_PARAMS) then
+        @idxFeature = @idxLastProcessedFeature;
+        @executionMode = @EXECUTION_MODE_DEFAULT;
+      endif
+
       if (@classFeatureXmlParentTagName != "") then
           @xmlData += @treelevel*@TAB+"</"+@classFeatureXmlParentTagName+">" + @CR;
          @treeLevel--;
       endif
       @idxFeature++;
-    next // @idxFeature<count(@featureMappingTable)
+    next // @idxFeature<count(@featureMappingTable) // END loop 1
     @xmlData += @treelevel*@TAB+'</class>'+@CR;
     @classDuplicateSuffix = '';
     if (@isDuplicateClass) then 
@@ -1545,4 +1641,4 @@ endif // (@verboseLevel > 0)
 return @objCountExported;
 
 
-// P.S.: never write PQLs longer then 50 lines ;)
+// P.S.: never write PQLs longer then 50 lines
