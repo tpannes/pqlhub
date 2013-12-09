@@ -9,7 +9,7 @@
  *    "Y8888P"   "Y88P"   "Y88888  "Y8888  8888888888 888  888 88888P"   "Y88P"  888      "Y888
  *                                                             888
  *                                                             888
- *                                                             888        v4.2
+ *                                                             888        v4.5
  *                                                             
  * created by TimoP, initial version released 03/2010, 
  * credits to RalfH / ManfredG / MarcoP for some nice ideas and testing
@@ -129,8 +129,8 @@
  *       - extended XML comments to support visible names for OID properties (e.g. $Author), $TransTargetState and $TransEventTypes
  *       - write user-defined search string for code checks to header line of CSV file (if available)
  *       - empty properties are now always exported into XMLs and properly formatted 
- *   v4.2:
- *       - added support for method parameters ($ParamDef) defined in class editor
+ *   v4.5:
+ *       - added method parameter definitions ($ParamDef) to XML output
  *
  *
  *   
@@ -203,7 +203,7 @@ Option ExecutionFlags = $io, $im;
 
 
 // constants
-@VERSION = "v4.2";
+@VERSION = "v4.5";
 @CR = char(10);
 @CRLF = char(10)+char(13);
 @TAB  = char(9);
@@ -327,14 +327,14 @@ endif
 // Class feature table
 // {  Name      ,   XML list tag name  ,   XML entry tag name    }  
 @featureMappingTable = Array(
-{'ClassDef'         ,   ''                ,   'ClassDefinition'      },
-{'AttrDef'          ,   'AttributeList'   ,   'AttributeDefinition'  },
-{'MethDef'          ,   'MethodList'      ,   'MethodDefinition'     },
-{'ParentDef'        ,   'ParentRefList'   ,   'ParentRefDefinition'  },
-{'ChildDef'         ,   'ChildRefList'    ,   'ChildRefDefinition'   },
-{'StateDef'         ,   'StateList'       ,   'StateDefinition'      },
-{'StateTransDef'    ,   'StateTransList'  ,   'StateTransDefinition' },
-{'MethodParamDef'   ,   'MethodParamList' ,   'MethodParam'} // has to be at the end 
+{'ClassDef'         ,   ''                          ,   'ClassDefinition'       },
+{'AttrDef'          ,   'AttributeList'             ,   'AttributeDefinition'   },
+{'MethDef'          ,   'MethodList'                ,   'MethodDefinition'      },
+{'ParentDef'        ,   'ParentRefList'             ,   'ParentRefDefinition'   },
+{'ChildDef'         ,   'ChildRefList'              ,   'ChildRefDefinition'    },
+{'StateDef'         ,   'StateList'                 ,   'StateDefinition'       },
+{'StateTransDef'    ,   'StateTransList'            ,   'StateTransDefinition'  },
+{'MethodParamDef'   ,   'MethodParamDefinitionList' ,   'MethodParamDefinition' } // has to be at the end 
 );
 
 
@@ -1036,12 +1036,14 @@ forEach @class in (@classSetToExport)
 
     @idxFeature = 1;
     @abortLoop = false;
-    while (@idxFeature<=Count(@featureMappingTable)) // loop 1: class entities (method list, attribute list, ...)
+    while (@idxFeature<Count(@featureMappingTable)) // LOOP 1: class features (method list, attribute list, ...)
 
       if (@executionMode==@EXECUTION_MODE_METHOD_PARAMS) then
-          @idxFeature = Count(@featureMappingTable); // MethodParamDef
-          @abortLoop = false;
+        @idxFeature = Count(@featureMappingTable); // MethodParamDef has to be last entry in table!
+        @abortLoop = false;
       endif
+
+      //message(@MSG_INFO, 'LOOP 1 >> feature = '+@idxFeature+' ('+@featureMappingTable[@idxFeature][1]+')');
 
       @classFeature                 = @featureMappingTable[@idxFeature][1];
       @classFeatureXmlParentTagName = @featureMappingTable[@idxFeature][2];
@@ -1101,24 +1103,25 @@ forEach @class in (@classSetToExport)
         Case 'MethodParamDef':
           @featureProperties  = fromMem(@class\$MethDef(.$MethId==@currentMethodId).$ParamDef);
       EndSelect
-    
-      @treeLevel++;
-      if (@classFeatureXmlParentTagName != "") then
-         @xmlData += @treelevel*@TAB+"<"+@classFeatureXmlParentTagName+">"+@CR;
-         @treeLevel++;
-      endif
-  
+     
+      // restore index after method paramdef processing has finished
       if (@idxLastProcessedEntity) then
         @idxEntity = @idxLastProcessedEntity;
         @idxLastProcessedEntity = $invalid;
       else
-        @idxEntity = 1;
+        @idxEntity = 1;     
       endif
-      While (@idxEntity<=Count(@featureProperties)) // loop 2: single attribute, method, ...
 
+      @treeLevel++;
+        if (@classFeatureXmlParentTagName != "") then
+          @xmlData += @treelevel*@TAB+"<"+@classFeatureXmlParentTagName+">"+@CR;
+          @treeLevel++;
+        endif
 
-        @xmlData += @treelevel*@TAB+"<"+@classFeatureXmlEntryTagName+">"+ @CR;
-        @treeLevel++; 
+      While (@idxEntity<=Count(@featureProperties)) // LOOP 2: single attribute, method, ...
+ 
+        //message(@MSG_INFO, 'LOOP 2 >> row = '+@idxEntity);
+
         @attribute = @featureProperties[@idxEntity];
         if (@classFeature=='MethDef') then
           @currentMethodId = @attribute.$MethId;
@@ -1126,16 +1129,21 @@ forEach @class in (@classSetToExport)
           @currentMethodId = $invalid;
         endif
 
-        if (@idxLastProcessedProperty) then
-          @idxFeatureValues = @idxLastProcessedProperty;
+        // restore index after method paramdef processing has finished
+        if (@idxLastProcessedProperty && @executionMode == @EXECUTION_MODE_DEFAULT) then
+          @idxFeatureValues = ++@idxLastProcessedProperty; // jump to next property as ParamDef has been handled
           @idxLastProcessedProperty = $invalid;
         else
-          @idxFeatureValues = 1;
-        endif
+          @idxFeatureValues = 1;        
+        endif   
+        @xmlData += @treelevel*@TAB+"<"+@classFeatureXmlEntryTagName+">"+ @CR;
+        @treeLevel++; 
 
-        While (@idxFeatureValues <= (count(@featurePropertyTable))) // loop 3:  properties
+        While (@idxFeatureValues <= (count(@featurePropertyTable))) // LOOP 3: properties
+ 
+          //message(@MSG_INFO, 'LOOP 3 >> property = '+@idxFeatureValues+' ('+@featurePropertyTable[@idxFeatureValues][1]+')');
+
           @property = @featurePropertyTable[@idxFeatureValues][1];
-
           // for method params processing, exit loop and store current index to return later
           if (@property==@METHOD_PARAMS_PROPERTY_NAME AND @classFeature=='MethDef') then
             @idxLastProcessedProperty = @idxFeatureValues;
@@ -1273,30 +1281,28 @@ forEach @class in (@classSetToExport)
           next // @arrayIndex <= @attrPropertyEntryCount
         
           @idxFeatureValues++;
-        next // @idxFeatureValues<(count(@featurePropertyTable)+1) // END loop 3
+        next // @idxFeatureValues<(count(@featurePropertyTable)+1) // ### END LOOP 1 ###
 
-        // for method params processing, exit loop and store current index to return later
+        // for method paramdef processing, exit loop and store current index to return later
         if (@abortLoop) then
           @idxLastProcessedEntity = @idxEntity;
           break; // go back to main loop for class features
         endif
 
-        if (@executionMode == @EXECUTION_MODE_METHOD_PARAMS) then
-          @idxEntity = @idxLastProcessedEntity;
-        endif
-
         @treeLevel--;
         @xmlData += @treelevel*@TAB+"</"+@classFeatureXmlEntryTagName+">" + @CR;
         @idxEntity++;
-      next // @idxEntity<=Count(@featureProperties) // END loop 2
+      next // @idxEntity<=Count(@featureProperties) // ### END LOOP 2 ###
 
       @treeLevel--;
-      // for method params processing, exit loop and store current index to return later
+
+      // for method paramdef processing, exit loop and store current index to return later
       if (@abortLoop) then     
         @idxLastProcessedFeature = @idxFeature;
         next;
       endif
 
+      // at this point, method paramdef processing is finsihed and so we switch back to normal processing mode and continue with next property 
       if (@executionMode == @EXECUTION_MODE_METHOD_PARAMS) then
         @idxFeature = @idxLastProcessedFeature;
         @executionMode = @EXECUTION_MODE_DEFAULT;
@@ -1307,7 +1313,7 @@ forEach @class in (@classSetToExport)
          @treeLevel--;
       endif
       @idxFeature++;
-    next // @idxFeature<count(@featureMappingTable) // END loop 1
+    next // @idxFeature<count(@featureMappingTable) // ### END LOOP 1 ###
     @xmlData += @treelevel*@TAB+'</class>'+@CR;
     @classDuplicateSuffix = '';
     if (@isDuplicateClass) then 
