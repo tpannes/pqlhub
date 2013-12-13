@@ -1,24 +1,10 @@
-/**
- *   CodeExport v3.9
- *   2010-2013 by TimoP
- *   File generated at 2013/07/02 11:16:04 by TimoP
- *   ---
- *   Visible Name:    GetBinaryAttributeSizeIntern
- *   Internal Name:   GetBinAttrSizeIntern
- *   Description:     
- *   PreConstraints:  
- *   Expression:  
- *   Parameter:     
- *      Param2: Output=%Result%
- *
-**/
-
 @self  = $self.$id,$node,$ClassGuid,*;
-@node  = @self.$node;
 @class = @self.$classGuid;
 
-@MSG_INFO    = 'PUGM0002I'; 
-@ATTR_TYPE_BINARY = 15;
+//@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
+
 
 @dataObjects   = value(@self.BinAttrFunctionsSourceObjects);
 @attrSelection = value(@self.BinAttrFunctionsAttrSelection);

@@ -3,13 +3,13 @@
  *   d88P  Y88b               888          888                                           888
  *   888    888               888          888                                           888
  *   888         .d88b.   .d88888  .d88b.  8888888    888  888 88888b.   .d88b.  888d888 888888
- *   888        d88""88b d88" 888 d8P  Y8b 888        `Y8bd8PÂ¥ 888 "88b d88""88b 888P"   888
+ *   888        d88""88b d88" 888 d8P  Y8b 888        `Y8bd8P´ 888 "88b d88""88b 888P"   888
  *   888    888 888  888 888  888 88888888 888          X88K   888  888 888  888 888     888
  *   Y88b  d88P Y88..88P Y88b 888 Y8b.     888        .d8""8b. 888 d88P Y88..88P 888     Y88b.
  *    "Y8888P"   "Y88P"   "Y88888  "Y8888  8888888888 888  888 88888P"   "Y88P"  888      "Y888
  *                                                             888
  *                                                             888
- *                                                             888        v4.5
+ *                                                             888        v4.50
  *                                                             
  * created by TimoP, initial version released 03/2010, 
  * credits to RalfH / ManfredG / MarcoP for some nice ideas and testing
@@ -131,6 +131,7 @@
  *       - empty properties are now always exported into XMLs and properly formatted 
  *   v4.5:
  *       - added method parameter definitions ($ParamDef) to XML output
+ *       - changed message codes (I/W/E) to be independent of EYE FW
  *
  *
  *   
@@ -203,7 +204,10 @@ Option ExecutionFlags = $io, $im;
 
 
 // constants
-@VERSION = "v4.5";
+@VERSION     = "v4.5";
+@MSG_ERROR   = 'PFGM0001E';
+@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
 @CR = char(10);
 @CRLF = char(10)+char(13);
 @TAB  = char(9);
@@ -227,9 +231,6 @@ Option ExecutionFlags = $io, $im;
 @CSV_HEADER_SEARCHTEXT = 'SearchExpression: ';
 @hexFormatString='@v.X@'; // for method IDs
 @hexIdPrefix = "0x";
-@MSG_INFO    = 'PUGM0002I';
-@MSG_WARNING = 'PUGM0001W';
-@MSG_ERROR   = 'PUGM0003E';
 @exportFolderDFA = 'DFA';
 @exportFolderPQL = 'PQL';
 @exportFolderXML = 'XML';
@@ -601,7 +602,7 @@ endif
 if (@simulateExport==false) then
     
   // create temporary data object to export code to filesystem
-  $local,$0: @dataGenericBinaryClass  = $search($classes of DataGenericBinary:).$id,$LogicalGUID top 1;
+  @dataGenericBinaryClass  = \{e1d3371a-1068-11d8-ab33-7bec1e1d933d}.$Id,$LogicalGUID;
   @exportTool = @node.call("InstantiateTransient",@DataGenericBinaryClass.$LogicalGUID);
   @exportTool = @exportTool.Return1;
   @exportToolBinAttrName = 'TargetName';
@@ -787,9 +788,9 @@ if (@export_PQL OR @export_XML) then
           Next
 
           if (@includeVersionChain) then
-            $0($im):    @set = $search($classes of @objClass:.$internalname like @objName).@propertyList;
+            $0($im):    @set = $search($classes of *:.$internalname like @objName).@propertyList;
           else
-            $0($v,$im): @set = $search($classes of @objClass:.$internalname like @objName).@propertyList;
+            $0($v,$im): @set = $search($classes of *:.$internalname like @objName).@propertyList;
           endif  
           @classSetToExport = union(@set, @classSetToExport);
           break;

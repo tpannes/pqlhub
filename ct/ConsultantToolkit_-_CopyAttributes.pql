@@ -1,19 +1,7 @@
-/**
- *   CodeExport v3.9
- *   2010-2013 by TimoP
- *   File generated at 2013/07/02 11:16:04 by TimoP
- *   ---
- *   Visible Name:    Copy Attributes
- *   Internal Name:   CopyAttributes
- *   Description:     
- *   PreConstraints:  !empty(CopyAttributesSource)&&!empty(CopyAttributesTarget)
- *   Expression:  
- *   Parameter:     
- *
-**/
-
 @self = $self.$id,$node,*;
-@MSG_ERROR   = 'PUGM0003E';
+@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+//@MSG_INFO    = 'PFGM0003I';
 
 @class  = @self\$ClassGUID.$InternalName;
 @method = 'CopyAttributes';
