@@ -1,17 +1,3 @@
-/**
- *   CodeExport v3.9
- *   2010-2013 by TimoP
- *   File generated at 2013/07/02 11:16:04 by TimoP
- *   ---
- *   Visible Name:    Export Icons
- *   Internal Name:   ExportIcons
- *   Description:     
- *   PreConstraints:  IconExportPath!=""&&IconExportFilter!=""
- *   Expression:  
- *   Parameter:     
- *
-**/
-
 /* PQL script "ExportIcons" created 2012 by TimoP
  * Version 1.0
  * 
@@ -26,7 +12,10 @@
  */
 
 
-@MSG_INFO    = 'PUGM0002I'; //@MSG_WARNING = 'PUGM0001W'; @MSG_ERROR   = 'PUGM0003E';
+//@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
+
 
 @self   = $self.$id,$node,*;
 @class  = @self\$ClassGUID.$InternalName;

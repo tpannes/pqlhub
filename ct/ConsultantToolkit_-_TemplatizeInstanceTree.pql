@@ -1,20 +1,4 @@
-/**
- *   CodeExport v3.9
- *   2010-2013 by TimoP
- *   File generated at 2013/07/02 11:16:04 by TimoP
- *   ---
- *   Visible Name:    Templatize Instance Tree
- *   Internal Name:   TemplatizeInstanceTree
- *   Description:     
- *   PreConstraints:  !empty(TemplatizeInstanceTreeSourceTreeRootOID)&&!empty(TemplatizeInstanceTreeTargetFolderOID)
- *   Expression:  
- *   Parameter:     
- *      Param2: RequestConfirmation=Yes
- *      Param3: ConfirmationText=This method can cause a high load on the DC when creating a large template tree. Do you want to continue?
- *
-**/
-
-@MSG_ERROR   = 'PUGM0003E';
+@MSG_ERROR   = 'PFGM0001E';
 
 @self   = $self.$id,$node,*;
 @class  = @self\$ClassGUID.$InternalName;
