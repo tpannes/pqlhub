@@ -1,5 +1,5 @@
-/* PQL script "GetValidFileNameForString" created 2012 by TimoP
- * Version 1.0
+/* v1.0
+ * PQL script "GetFileNameFromStringGeneric" created 2012 by TimoP
  * 
  * Description:  
  *   The script creates a valid filename for a given input string by exchanging all problematic characters by an underscore.
@@ -22,7 +22,7 @@
 
 @self   = $self.$id,$displayname,$node,$ClassGUID,*;
 @class  = @self\$ClassGUID.$InternalName;
-@method = 'GetValidFileNameForString';
+@method = 'GetFileNameFromStringGeneric';
 
 
 @inputString  = $param1;

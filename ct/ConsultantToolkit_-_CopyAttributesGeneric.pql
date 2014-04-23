@@ -1,5 +1,5 @@
-/* PQL script "CopyAttributesGeneric" 2011-2014 by TimoP
- * Version 3.1
+/* v3.1
+ * PQL script "CopyAttributesGeneric" 2011-2014 by TimoP
  * 
  * Description:  
  *   The script copies attribute values between two instances or templates to quickly populate 

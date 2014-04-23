@@ -1,6 +1,6 @@
-/* PQL script "BackupPortalGeneric" created 2012 by TimoP
- * Version 1.0
- * 
+/* v1.0
+ * PQL script "BackupPortalGeneric" created 2012 by TimoP
+ *  
  * Description:  
  *   The script exports all resources of an ISIS webserver into a specified folder in the filesystem.
  *   This includes static data (HTML, CSS, images, javascript) as well as all PPL layouts that are found 

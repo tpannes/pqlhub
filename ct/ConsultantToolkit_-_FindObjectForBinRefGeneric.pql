@@ -1,5 +1,5 @@
-/* PQL script "FindObjectForBinRefGeneric" created 2012 by TimoP
- * Version 1.2
+/* v1.2
+ * PQL script "FindObjectForBinRefGeneric" created 2012 by TimoP
  * 
  * Description:  
  *   The script searches the owner object/attribute for a given binary reference (BinRef). 

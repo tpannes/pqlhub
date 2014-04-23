@@ -1,5 +1,5 @@
-/* PQL script "BinaryExportGeneric" created 2011 by TimoP
- * Version 1.3
+/* v1.3
+ * PQL script "BinaryExportGeneric" created 2011 by TimoP
  * 
  * Description:  
  *   This script will export the content of all binary attributes of an arbitrary object to the local filesystem.

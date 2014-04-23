@@ -1,5 +1,5 @@
-/* PQL script "TemplatizeInstanceTreeGeneric" created 2012 by TimoP
- * Version 1.0
+/* v1.0
+ * PQL script "TemplatizeInstanceTreeGeneric" created 2012 by TimoP
  * 
  * Description:  
  *   The script "templatizes" a given instance tree by creating a new template for each object in the source tree while 

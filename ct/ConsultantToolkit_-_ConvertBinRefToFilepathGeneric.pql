@@ -1,5 +1,5 @@
-/* PQL script "ConvertBinRefToFile" created 2012 by TimoP
- * Version 1.0
+/* v1.0
+ * PQL script "ConvertBinRefToFile" created 2012 by TimoP
  * 
  * Description:  
  *   The script calculates the content string of a binary attribute out of a given path to a *.bi4 file
