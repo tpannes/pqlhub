@@ -1,4 +1,4 @@
-/* v1.0
+/* v1.1
  * PQL script "GetFileNameFromStringGeneric" created 2012 by TimoP
  * 
  * Description:  
@@ -7,7 +7,8 @@
  * 
  * Usage: 
  *   Param1: input string to be converted into a valid filename
- *   Param2: verbose level (optional)
+ *   Param2: replacement character (optional, default: '_')
+ *   Param3: verbose level (optional)
  * 
  * Return:
  *   Valid filename based on input string where all forbidden characters are exchanged by underscores
@@ -25,14 +26,18 @@
 @method = 'GetFileNameFromStringGeneric';
 
 
-@inputString  = $param1;
-@verboseLevel = $param2;
+@inputString     = $param1;
+@replacementChar = $param2;
+@verboseLevel    = $param3;
 
 @FORBIDDEN_CHARACTERRS = array('?','/','\','%','<','>',':','"','|','*');
+if (@replacementChar==$invalid OR InArray(@FORBIDDEN_CHARACTERRS, @replacementChar)) then
+  @replacementChar = '_';
+endif
  
 @fileName = @inputString;
 ForEach @char in (@FORBIDDEN_CHARACTERRS)
-  @fileName = substitute(@fileName, @char,'_');
+  @fileName = substitute(@fileName, @char, @replacementChar);
 Next
 
 if (@verboseLevel>4) then
