@@ -1,4 +1,4 @@
-/* v4.50
+/* v4.51
  *
  *    .d8888b.                888          8888888888                                    888
  *   d88P  Y88b               888          888                                           888
@@ -133,6 +133,8 @@
  *   v4.5:
  *       - added method parameter definitions ($ParamDef) to XML output
  *       - changed message codes (I/W/E) to be independent of EYE FW
+ *   v4.51:
+ *       - fixed bug related to file name generation for PQL code attributes of instances / templates
  *
  *
  *   
@@ -1363,14 +1365,25 @@ if (@export_PQL) then
     @creationDate     = Substitute(ToString(date(@obj.$Created)),"/","")+@dateTimeSeparator+Substitute(ToString(time(@obj.$Created)),":","");
     @modificationDate = Substitute(ToString(date(@obj.$Modified)),"/","")+@dateTimeSeparator+Substitute(ToString(time(@obj.$Modified)),":","");
     if (@objType==@OBJECT_TYPE_INSTANCES) then
-      @filename = @instanceNamingScheme;
+      @filenameNs = @instanceNamingScheme;
     else
-      @filename = @templateNamingScheme;
+      @filenameNs = @templateNamingScheme;
     endif
+    // supported variables: <OID>, <LGUID>, <CLASS_NAME>, <OBJ_NAME>, <DATE_CREATED>, <DATE_MODIFIED>, <CREATOR>, <ATTR_NAME>
+    // example naming scheme: (T)<CLASS_NAME>_-_<OBJ_NAME>_<ATTR_NAME>_<LGUID>_<OID>
+    @filenameNs = Substitute(@filenameNs, '<OID>',           toString(@objId));
+    @filenameNs = Substitute(@filenameNs, '<LGUID>',         toString(@objLguid));
+    @filenameNs = Substitute(@filenameNs, '<VGUID>',         toString(@objVguid));
+    @filenameNs = Substitute(@filenameNs, '<CLASS_NAME>',    @className);
+    @filenameNs = Substitute(@filenameNs, '<OBJ_NAME>',      @objName); 
+    @filenameNs = Substitute(@filenameNs, '<DATE_CREATED>',  @creationDate);      
+    @filenameNs = Substitute(@filenameNs, '<DATE_MODIFIED>', @modificationDate);
+    @filenameNs = Substitute(@filenameNs, '<CREATOR>',       @objCreator);   
+
     // if whole version chain is exported and filename doesn't contain creation date yet, then add timestamp to filename
     @filenameAppendix = '';
     if (@includeVersionChain) then
-      if (Pos('<OBJ_CREATEDATE>', @filename)==0) then
+      if (Pos('<OBJ_CREATEDATE>', @filenameNs)==0) then
         @filenameAppendix = @filenameComponentSeparator + @creationDate;
       endif
     endif  
@@ -1381,18 +1394,7 @@ if (@export_PQL) then
       @pqlStatement = @obj.@attr;
       @pqlStatementLen = length(@pqlStatement);
 
-      // supported variables: <OID>, <LGUID>, <CLASS_NAME>, <OBJ_NAME>, <ATTR_NAME>
-      // example naming scheme: (T)<CLASS_NAME>_-_<OBJ_NAME>_<ATTR_NAME>_<LGUID>_<OID>
-      @filename = Substitute(@filename, '<OID>',           toString(@objId));
-      @filename = Substitute(@filename, '<LGUID>',         toString(@objLguid));
-      @filename = Substitute(@filename, '<VGUID>',         toString(@objVguid));
-      @filename = Substitute(@filename, '<CLASS_NAME>',    @className);
-      @filename = Substitute(@filename, '<OBJ_NAME>',      @objName);
-      @filename = Substitute(@filename, '<ATTR_NAME>',     @attrName);     
-      @filename = Substitute(@filename, '<DATE_CREATED>',  @creationDate);      
-      @filename = Substitute(@filename, '<DATE_MODIFIED>', @modificationDate);
-      @filename = Substitute(@filename, '<CREATOR>',       @objCreator);
-
+      @filename = Substitute(@filenameNs, '<ATTR_NAME>', @attrName); 
       @filename += (@filenameAppendix + @FILE_EXTENSION_PQL);
       forEach @char in (@FILENAME_FORBIDDEN_CHARS)
         @filename = Substitute(@filename, @char, @invalidCharReplacement);
