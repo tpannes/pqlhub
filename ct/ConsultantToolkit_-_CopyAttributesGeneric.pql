@@ -1,4 +1,4 @@
-/* v3.1
+/* v3.2
  * PQL script "CopyAttributesGeneric" 2011-2014 by TimoP
  * 
  * Description:  
@@ -26,6 +26,7 @@
 @MSG_WARNING = 'PFGM0002W';
 @MSG_INFO    = 'PFGM0003I';
 @ATTR_TYPE_BINARY        = 15;
+@ACCESSIBILITY_ATTR_NAME = '$Accessibility';
 @ACCESSIBILITY_PROTECTED = 2;
 
 
@@ -85,7 +86,7 @@ forEach @attr in (@attributes)
 
   // ignore "Protected" attributes (only v7.16 up where system property $Accessibility is available) 
   if (@binVersion >= 7.16) then
-    if (@attr\$reload.$Accessibility==@ACCESSIBILITY_PROTECTED) then
+    if (@attr\$reload.@ACCESSIBILITY_ATTR_NAME==@ACCESSIBILITY_PROTECTED) then
       if (@verboseLevel>2) then
         message(@MSG_WARNING, '  - "'+@attr+'" is "Protected" and cannot be accessed');
       endif
