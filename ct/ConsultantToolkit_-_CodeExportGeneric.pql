@@ -1,10 +1,10 @@
-/* v4.51
+/* v4.9
  *
  *    .d8888b.                888          8888888888                                    888
  *   d88P  Y88b               888          888                                           888
  *   888    888               888          888                                           888
- *   888         .d88b.   .d88888  .d88b.  8888888    888  888 88888b.   .d88b.  888d888 888888
- *   888        d88""88b d88" 888 d8P  Y8b 888        `Y8bd8P´ 888 "88b d88""88b 888P"   888
+ *   888         .d88b.   .d88888  .d88b.  8888$888    888  888 88888b.   .d88b.  888d888 888888
+ *   888        d88""88b d88" 888 d8P  Y8b 888        `Y8bd8P  888 "88b d88""88b 888P"   888
  *   888    888 888  888 888  888 88888888 888          X88K   888  888 888  888 888     888
  *   Y88b  d88P Y88..88P Y88b 888 Y8b.     888        .d8""8b. 888 d88P Y88..88P 888     Y88b.
  *    "Y8888P"   "Y88P"   "Y88888  "Y8888  8888888888 888  888 88888P"   "Y88P"  888      "Y888
@@ -135,9 +135,19 @@
  *       - changed message codes (I/W/E) to be independent of EYE FW
  *   v4.51:
  *       - fixed bug related to file name generation for PQL code attributes of instances / templates
+ *   v4.6:
+ *       - added support for new attribute type "ProcAddr" and made code more robust to future extensions
+ *       - added support for new method properties $ExecuteWithOmsAccount and $ExecuteWithOmsAccountScript
+ *   v4.61:
+ *       - restored backward compatibility for v7.02
+ *   v4.8:
+ *      - added support for framework filters to enable export of objects based on the frameworks they belong
+ *      - improved code quality by using regular expressions to parse export definitions
+ *   v4.9:
+ *      - fixed bug where $Range property was not exported correctly when it contained PQL code
+ *      - added support for new properties (e.g. for structs)
  *
- *
- *   
+ *  
  *   Known issues (will not affect functionality)
  *   - on systems, where "BinaryExportExtended" is not supported, the output directories are created by a batch script 
  *     which has following drawbacks:
@@ -152,34 +162,36 @@ Option ExecutionFlags = $io, $im;
 
 // Basic settings
 // (number in square brackets shows to which parameter the variable corresponds when script is called from external)
-@exportDefinitionsPql       = Array();  // [1] set of classes and/or templates and/or instances for PQL export
-@exportDefinitionsResources = Array();  // [2] set of DFAs/INCs that will be exported
-@exportPathBase = "C:\CodeExport\";     // [3] output folder path (a new subfolder will be created within this folder each time the script runs)
-@export_PQL = true;                     // [4.1] switch to toggle export of PQL code
-@export_DFA = true;                     // [4.2] switch to toggle export of DFAs / INCs
-@export_XML = true;                     // [4.3] switch to toggle export of class definitions in XML format
-@simulateExport   = true;               // [5.1] if set to 1, no files are generated, e.g. if if you only want to perform code check
-@performCodeCheck = true;               // [5.2] defines whether a code check should be done (based on regular expressions)
-@verboseLevel = 2;                      // [8] verbose level, set to 0 for quiet operation
+@exportDefinitionsPql       = Array();   // [1] set of classes and/or templates and/or instances for PQL export
+@exportDefinitionsResources = Array();   // [2] set of DFAs/INCs that will be exported
+@fwFilterDefinitions = $Invalid;         // [3] defines a set of frameworks / framework folders as a search result filter  
+@exportPathBase = "C:\CodeExport\";      // [4] output folder path (a new subfolder will be created within this folder each time the script runs)
+@export_PQL = true;                      // [5.1] switch to toggle export of PQL code
+@export_DFA = true;                      // [5.2] switch to toggle export of DFAs / INCs
+@export_XML = true;                      // [5.3] switch to toggle export of class definitions in XML format
+@simulateExport   = true;                // [6.1] if set to 1, no files are generated, e.g. if if you only want to perform code check
+@performCodeCheck = true;                // [6.2] defines whether a code check should be done (based on regular expressions)
+@verboseLevel = 2;                       // [9] verbose level, set to 0 for quiet operation
      
 // Advanced settings
-@generatePqlHeader   = true;            // [5.3] defines whether a header section is added to each file that contains code of a PQL method 
-@includeVersionChain = false;           // [5.4] defines if all versions of a class should be exported (1) or just the latest one (0)
-@xmlComments         = true;            // [5.5] set to 1 for human readable output of B64 encoded content and attribute types 
-@xmlCreateCombinedOutputFile = true;    // [5.6] set to 1 to create a combined XML file for all classes in addition to single output files
-@classPrefix             = '';          // [7.1] prefix for all output files that contain PQL code from classes
-@classAttributeSeparator = '_';         // [7.2] separator between class and attribute name in output filename
-@classMethodSeparator    = '_-_';       // [7.3] separator between class and method name in output filename
-@propertySeparator       = '_$';        // [7.4] separator between attribute/method name and property name in output filename
-@propertyIndexSeparator  = '.';         // [7.5] separator between property name and index in output filename (only applied if propery is an array, e.g. $substitution)
-@methodIdSeparator       = '_';         // [7.6] separator between method name and method ID (only applied if there are multiple methods with the same name)
-@templateNamingScheme    = '(T)<CLASS_NAME>_-_<OBJ_NAME>_<ATTR_NAME>_<OID>'; // [7.7] naming scheme for templates
-@instanceNamingScheme    = '(I)<CLASS_NAME>_-_<OBJ_NAME>_<ATTR_NAME>_<OID>'; // [7.8] naming scheme for instances
-@invalidCharReplacement  = '_';         // [7.9] replacement character(s) for invalid characters in instance/template names
+@generatePqlHeader   = true;             // [6.3] defines whether a header section is added to each file that contains code of a PQL method 
+@includeVersionChain = false;            // [6.4] defines if all versions of a class should be exported (1) or just the latest one (0)
+@xmlComments         = true;             // [6.5] set to 1 for human readable output of B64 encoded content and attribute types 
+@xmlCreateCombinedOutputFile = true;     // [6.6] set to 1 to create a combined XML file for all classes in addition to single output files
+@userDefinedSearchExpression = $Invalid; // [7] used defind regex expression for code checker
+@classPrefix             = '';           // [8.1] prefix for all output files that contain PQL code from classes
+@classAttributeSeparator = '_';          // [8.2] separator between class and attribute name in output filename
+@classMethodSeparator    = '_-_';        // [8.3] separator between class and method name in output filename
+@propertySeparator       = '_$';         // [8.4] separator between attribute/method name and property name in output filename
+@propertyIndexSeparator  = '.';          // [8.5] separator between property name and index in output filename (only applied if propery is an array, e.g. $substitution)
+@methodIdSeparator       = '_';          // [8.6] separator between method name and method ID (only applied if there are multiple methods with the same name)
+@templateNamingScheme    = '(T)<CLASS_NAME>_-_<OBJ_NAME>_<ATTR_NAME>_<OID>'; // [8.7] naming scheme for templates
+@instanceNamingScheme    = '(I)<CLASS_NAME>_-_<OBJ_NAME>_<ATTR_NAME>_<OID>'; // [8.8] naming scheme for instances
+@invalidCharReplacement  = '_';          // [8.9] replacement character(s) for invalid characters in instance/template names
 
 
 
-// [6] Regular expression table used during code checking
+// Regular expression table used during code checking
 // [regex] | [message] | [num chars to print before match] | [num chars to print after match] 
 @searchExpressions = Array(
   {'[\\="' + "'{,][\s]*[0-9A-Fa-f]{1,3}\.[0-9A-Fa-f]{1,3}\.[0-9A-Fa-f]{1,8}\.[0-9A-Fa-f]{1,8}[\s]*[\\'" + '"};,] ', "hardcoded object ID", 32, 32},
@@ -207,7 +219,7 @@ Option ExecutionFlags = $io, $im;
 
 
 // constants
-@VERSION     = "v4.5";
+@VERSION     = "v4.9";
 @MSG_ERROR   = 'PFGM0001E';
 @MSG_WARNING = 'PFGM0002W';
 @MSG_INFO    = 'PFGM0003I';
@@ -219,7 +231,6 @@ Option ExecutionFlags = $io, $im;
 @OBJECT_TYPE_CLASSES   = 1;
 @OBJECT_TYPE_TEMPLATES = 2;
 @OBJECT_TYPE_INSTANCES = 3;
-@OBJECT_TYPE_TABLE = array('classes', 'templates', 'instances');
 @PQLPARAMPREFIX = 'PQLStatement=';
 @EDITMODE_PQLSTATEMENT = 'PQL Statement';
 @METHOD_PARAMS_PROPERTY_NAME = 'ParamDef';
@@ -246,9 +257,9 @@ Option ExecutionFlags = $io, $im;
 
 
 // check if we are called from external - in that case override configuration variables with input parameters
-// $param4 is always mandatory, so its a good candidate for checking this
+// $param5 is always mandatory, so its a good candidate for checking this
 @externalCall = false;
-if ($param4 !=$invalid) then
+if ($param5 !=$invalid) then
   @externalCall = true;
 endif 
   
@@ -258,13 +269,14 @@ if (@externalCall) then
   if ( @exportDefinitionsPqlDefined || @exportDefinitionsResourcesDefined ) then
     if (@exportDefinitionsPqlDefined)       then @exportDefinitionsPql       = $param1; endif
     if (@exportDefinitionsResourcesDefined) then @exportDefinitionsResources = $param2; endif
-    @exportPathBase     = $param3;
-    @exportTypes        = toInt($param4);
+    @fwFilterDefinitions = $param3;
+    @exportPathBase      = $param4;
+    @exportTypes         = toInt($param5);
     @export_PQL = (@exportTypes & 1) >0; // lowest bit defines if PQL code is exported
     @export_DFA = (@exportTypes & 2) >0; // second lowest bit defines if DFA code is exported
     @export_XML = (@exportTypes & 4) >0; // third lowest bit defines if class definitions are exported in XML format
-    if ($param5 !=$invalid) then 
-      @flags    = $param5;
+    if ($param6 !=$invalid) then 
+      @flags    = $param6;
       @simulateExport              = (@flags &  1) > 0;  
       @performCodeCheck            = (@flags &  2) > 0;
       @generatePqlHeader           = (@flags &  4) > 0;
@@ -272,16 +284,16 @@ if (@externalCall) then
       @xmlComments                 = (@flags & 16) > 0;
       @xmlCreateCombinedOutputFile = (@flags & 32) > 0;
     endif
-    if ($param6!=$invalid) then
-      @userDefinedSearchExpression = $param6; 
+    if ($param7!=$invalid) then
+      @userDefinedSearchExpression = $param7; 
       @searchExpressions  = Array({@userDefinedSearchExpression, "match", 32, 32});
       @csvLastColumnIndex = RPos(';', @CSV_HEADER_LINE);
       @csvLastColumnName  = Right(@CSV_HEADER_LINE, Length(@CSV_HEADER_LINE)- @csvLastColumnIndex);
       @csvLastColumnNameNew = '"' + @csvLastColumnName + ' ### '+@CSV_HEADER_SEARCHTEXT + Substitute(@userDefinedSearchExpression, '"', '""') + ' ###"';
       @CSV_HEADER_LINE = Substitute(@CSV_HEADER_LINE, @csvLastColumnName, @csvLastColumnNameNew);
     endif
-    if ($param7!=$invalid) then 
-      @filenameOptions   = split($param7,@filenameOptionsSeparator);
+    if ($param8!=$invalid) then 
+      @filenameOptions   = split($param8,@filenameOptionsSeparator);
       @classPrefix             = @filenameOptions[1];
       @classAttributeSeparator = @filenameOptions[2];
       @classMethodSeparator    = @filenameOptions[3];
@@ -292,40 +304,60 @@ if (@externalCall) then
       @instanceNamingScheme    = @filenameOptions[8];
       @invalidCharReplacement  = @filenameOptions[9];
     endif
-    if ($param8!=$invalid) then @verboseLevel      = toInt($param8);  endif
+    if ($param9!=$invalid) then @verboseLevel = $param9; endif
   else 
     message(@MSG_ERROR,'CodeExport '+@VERSION+': Not all mandatory input parameters have been provided');   
   endif
 endif
 
+// match expression table for export definitions
+// [ObjType | ObjType Name | ObjType Match Expression]
+@EXPORTDEF_MATCH_TABLE = {
+  { @OBJECT_TYPE_CLASSES,   'classes',   '^C:()([a-zA-Z0-9_\*]*)$'},
+  { @OBJECT_TYPE_TEMPLATES, 'templates', '^T:<([a-zA-Z0-9_\*]+)>([a-zA-Z0-9_\*]+)$'},
+  { @OBJECT_TYPE_INSTANCES, 'instances', '^I:<([a-zA-Z0-9_\*]+)>([a-zA-Z0-9_\*]+)$'}
+};
+
+@WILDCARD_SEARCHES = {
+'C:*',
+'T:<*>*',
+'I:<*>*'
+};
 
 // human readable description of attibute types
-@attrTypeTable = Array('1','2','3','4','Integer','6','Float','String','9','Memory','Objref','12','Date/Time','14','Binary','Boolean','Binary remote',
-                       '18','19','20','21','22','23','24','25','26','27','28','29','30','31','Date','Time','34','35','36','GUID','','AttrDefKey');
+@attrTypeTable = Array('1','2','3','4','Integer','6','Float','String','9','Memory','Objref','12','Date/Time','14','Binary',
+                       'Boolean','Binary remote','18','19','20','21','22','23','24','25','26','27','28','29','30','31','Date',
+                       'Time','34','35','36','GUID','38','AttrDefKey','40','41','ProcAddr');
 
-// human readable description of state transistion event types ($TransTargetState is zero based, so it has to be incremented by 1 to match with table)
+// human readable description of specific property values (attention: related values are zero based!)
 @transEventTypeTable = Array('Call','Absolute time','Relative time','Change','Call tool','Call material','Program');
+@classUsageTable     = Array('Class only','Struct only','Class and struct');
+// 20151221: Not yet useable (first two options result in empty property, the third one relates to value 2)
+//@translateNameTable  = Array('No translation','Translation via translation collection','Language specific values');
 
+// list of system attributes to query
+@sysattrList = {"$Id","$InternalName","$DisplayName","$Created","$Modified","$Author","$Inheritance","$LogicalGUID","$VersionGUID","$Enginestatus","$ObjectDescription","$Background","$Icon","$ObjType" };
 
 // prefixes in attribute properties that indicate PQL code
 @propertyPrefixPQLTable      = Array('Pqlstatement=', 'PQL:');
 @propertyPrefixPQLTableCount = count(@propertyPrefixPQLTable);
 
 // List of method properties that may contain PQL code ($Param is not covered here as its treated separately)
-// [Internal name   |   Visible Name     ]
+// [Internal name               |   Visible Name                  | Required binary version ]
 @methodPropertyTable = Array(
-{'$PreConstraints'  ,   'PreConstraints' },
-{'$PostConstraints' ,   'Expression'     }
+{'$PreConstraints'              ,   'PreConstraints'              , 7.00       },
+{'$PostConstraints'             ,   'Expression'                  , 7.00       },
+{'$ExecuteWithOmsAccountScript' ,   'ExecuteWithOmsAccountScript' , 7.17014313 }
 );
 
 // List of attribute properties that may contain PQL code
-// [Internal name   |   Visible Name      | Is Array | Only valid for $EditMode ]
+// [Internal name   |   Visible Name      | Is Array | Only valid for $EditMode | Required binary version]
 @attributePropertyTable = Array(
-{'$Constraints'     ,   'Constraints'     , 0, '*'},
-{'$Range'           ,   'InputRange'      , 0, '*'},
-{'$ViewConstraints' ,   'ViewConstraints' , 0, '*'},
-{'$EditConstraints' ,   'EditConstraints' , 0, '*'},
-{'$Substitutions'   ,   'Substitutions'   , 1, {'MultiListBox', 'ComboBox'}}
+{'$Constraints'     ,   'Constraints'     , 0, '*'                         , 7.00},
+{'$Range'           ,   'InputRange'      , 0, '*'                         , 7.00},
+{'$ViewConstraints' ,   'ViewConstraints' , 0, '*'                         , 7.00},
+{'$EditConstraints' ,   'EditConstraints' , 0, '*'                         , 7.00},
+{'$Substitutions'   ,   'Substitutions'   , 1, {'MultiListBox', 'ComboBox'}, 7.00}
 );
 
 // Class feature table
@@ -341,10 +373,10 @@ endif
 {'ParamDef'         ,   'ParamDef'           ,   'ParamDefEntry'        }  // has to be at the end 
 );
 
-
 // Property tables
 // {Property Name, IsArray [0,1], OutputMode, BinVersion Required}
-// OutputMode: 0=default (no special handling), 1=Base64, 2=LGUID, 3=AttrTypeName, 4=TransEventTypeName, 5=TransTargetStateName, 6=VisibleNameForOid]
+// OutputMode: 0=default (no special handling), 1=Base64, 2=LGUID, 3=AttrTypeName, 4=TransEventTypeName, 
+//             5=TransTargetStateName, 6=VisibleNameForOid, 7=ClassUsageName]
 @classMetadataTable = Array(
 {'Id'                           ,0,0, 7.00}, // Object ID 
 {'Name'                         ,0,1, 7.00}, // Visible Name
@@ -363,9 +395,10 @@ endif
 {'InstanceVersioning'           ,0,0, 7.14}, // Instance Versioning
 {'Accessibility'                ,0,0, 7.14}, // Accessibility
 {'Abstract'                     ,0,0, 7.14}, // Abstract
-{'Final'                        ,0,0, 7.14}  // Final
+{'Final'                        ,0,0, 7.14}, // Final
+{'ClassUsage'                   ,0,7, 7.18}, // Class usage
+{'TranslateName'                ,0,0, 7.18}  // Translate Name
 );
-
 
 @attributeMetadataTable = Array(
 {'AttrId'                       ,0,0, 7.00}, // ID
@@ -384,7 +417,7 @@ endif
 {'TypeProperty'                 ,0,1, 7.00}, // Type property
 {'EditProperty'                 ,0,1, 7.00}, // Edit property
 {'VisibleForEdit'               ,0,0, 7.00}, // Visible for edit
-{'Range'                        ,0,0, 7.00}, // Input range
+{'Range'                        ,0,1, 7.00}, // Input range
 {'Format'                       ,0,0, 7.00}, // Output format
 {'ViewPrivileges'               ,1,0, 7.00}, // View Privilege
 {'ViewConstraints'              ,0,1, 7.00}, // View Constraints
@@ -397,7 +430,6 @@ endif
 {'CalculateDefaultValue'        ,0,0, 7.16}, // Calculate default
 {'Accessibility'                ,0,0, 7.16}  // Accessibility
 );
-
 
 @methodMetadataTable = Array(
 {'MethId'                       ,0,0, 7.00}, // Method ID
@@ -440,9 +472,11 @@ endif
 {'Accessibility'                ,0,0, 7.14}, // Accessibility
 {'Abstract'                     ,0,0, 7.14}, // Abstract
 {'Final'                        ,0,0, 7.14}, // Final
-{'Delegate'                     ,0,0, 7.16}  // Delegate
+{'Delegate'                     ,0,0, 7.16}, // Delegate
+{'ExecuteWithOmsAccount'        ,0,0, 7.17014313}, // Execute with OMS account
+{'ExecuteWithOmsAccountScript'  ,0,1, 7.17014313}, // Execute with OMS account script
+{'ValidForStruct'               ,0,0, 7.18}  // valid for Struct
 );
-
 
 @parentDefMetadataTable = Array(
 {'RefId'                        ,0,0, 7.00}, // ID
@@ -464,7 +498,6 @@ endif
 {'MoveConstraints'              ,0,0, 7.16}, // Move Constraints
 {'Docu'                         ,1,0, 7.00}  // Docu
 );
-
 
 @childDefMetadataTable = Array(
 {'RefId'                        ,0,0, 7.00}, // ID
@@ -489,7 +522,6 @@ endif
 {'Docu'                         ,1,0, 7.00}  // Docu
 );
 
-
 @stateTransDefMetadataTable = Array(
 {'TransTargetState'             ,1,5, 7.00}, // Target state  
 {'TransEventType'               ,1,4, 7.00}, // Event type
@@ -505,7 +537,6 @@ endif
 {'TransDocu'                    ,1,0, 7.00}, // Docu
 {'TransDisabledIfLockedForEdit' ,0,0, 7.16}  // Disabled if locked for edit
 );
-
 
 @stateDefMetadataTable = Array(
 {'StateId'                      ,0,0, 7.00}, // State ID
@@ -526,7 +557,6 @@ endif
 ForEach @elem in (@stateTransDefMetadataTable)
   @stateDefMetadataTable = InsertValue(@stateDefMetadataTable, @elem); // AppendArray not available in v702
 Next
-
 
 @paramDefMetadataTable = Array(
 {'InternalName'                 ,0,1, 7.16}, // Name
@@ -555,7 +585,7 @@ Next
 @xml_date                  = DateTime(); 
 @xml_commentPrefix         = '<!-- ';
 @xml_commentSuffix         = ' -->';
-@xml_minusminusReplacement = "#minus-minus#"; // XML-comments must not contain "--"
+@xml_minusminusReplacement = "++"; // XML-comments must not contain "--"
 @xml_base64charsPerLine    = 64;
 @xmlCombinedOutputFilename = "_ClassExport_" + @date + ".xml";
 @xmlDataCombined           = '';
@@ -590,8 +620,8 @@ endif;
 @classRcResource  = {86e9223c-57ac-304a-b75a-09f39618a40e};
 @exportMethodData       = @classData      \$MethDef(.$ImplementationName like "BinaryExportExtended").$MethNameIntern;
 @exportMethodRcResource = @classRcResource\$MethDef(.$ImplementationName like "BinaryExportExtended").$MethNameIntern;
-@binVersion = ParseAmount(Left($CurrentNodeId.BuildNumber,4));
-
+@buildNumber = $CurrentNodeId.BuildNumber;
+@binVersion = ToDouble(Substitute(@buildNumber,'.','',Pos('.', @buildNumber)+1));
 
 // use build-in method BinaryExportExtended if supported by both frameworks and binaries
 if (IsInvalid(@exportMethodData) OR IsInvalid(@exportMethodRcResource) OR @binVersion < 7.12) then
@@ -660,11 +690,12 @@ if (@verboseLevel >= 5 && @externalCall) then
   message(@MSG_INFO, ' Script was called from external with following parameters:');
   @idx = 1;
   // first two parameters are arrays and require some special handling for nice output..  
-  while (@idx <= 2) 
+  while (@idx <= 3) 
     @paramString = "[";
     select (@idx)
       case 1: @paramIdx = $param1; break;
       case 2: @paramIdx = $param2; break;
+      case 3: @paramIdx = $param3; break;
     endselect
     if (count(@paramIdx)==0) then
       @paramString = "[]";
@@ -677,7 +708,6 @@ if (@verboseLevel >= 5 && @externalCall) then
     message(@MSG_INFO, ' -> $param'+@idx+'  = '  + @paramString);
     @idx++;
   next
-  message(@MSG_INFO, ' -> $param3  = '  + $param3);
   message(@MSG_INFO, ' -> $param4  = '  + $param4);
   message(@MSG_INFO, ' -> $param5  = '  + $param5);
   message(@MSG_INFO, ' -> $param6  = '  + $param6);
@@ -690,6 +720,27 @@ if (@verboseLevel > 3) then
   endif
 endif 
 
+
+@filterByFrameworks = (Count(@fwFilterDefinitions)>0);
+If (@filterByFrameworks) Then
+  If (@verboseLevel > 1) Then
+    Message(@MSG_INFO, 'Framework filtering is enabled');
+  Endif
+  @frameworkSet1 = @fwFilterDefinitions\$Reload(Framework:).$Id,$LogicalGUID,$DisplayName;
+  @frameworkSet2 = @fwFilterDefinitions\$Reload(FrameworkFolder:)\(Framework:).$Id,$LogicalGUID,$DisplayName;
+  @frameworkSet = Union(@frameworkSet1, @frameworkSet2);
+  If (@includeVersionChain) Then
+    @fwGuidArray = toArray(@frameworkSet.$LogicalGUID);
+    $0($im): @frameworkSet = $Search($Instances Of Framework:.$LogicalGUID like @fwGuidArray).$Id,$DisplayName;
+  EndIf
+  If (@verboseLevel > 3) Then
+    ForEach @fw in (@frameworkSet)
+      Message(@MSG_INFO, ' >> '+@fw.$DisplayName +' ['+@fw.$Id+']');
+    Next
+  Endif
+EndIf
+
+
 //===- Extract DFA code from resources -===
 
 if (@export_DFA) then
@@ -699,6 +750,10 @@ if (@export_DFA) then
     $0($im): @resourceSetToExport = $search($instances of DFA,INC:(.$name like @exportDefinitionsResources)).$id,$name,$created,Content,Type;
   else
     $0($v,$im): @resourceSetToExport = $search($instances of DFA,INC:(.$name like @exportDefinitionsResources)).$id,$name,$created,Content,Type;
+  endif
+  if (@filterByFrameworks) then
+    $0($v,$im): @resourceSetToExportFw = @frameworkSet\(DFA,INC:.$name like @exportDefinitionsResources).$id,$name,$created,Content,Type;
+    @resourceSetToExport = Intersection(@resourceSetToExport, @resourceSetToExportFw);
   endif
 
   forEach @resource in (@resourceSetToExport)
@@ -724,105 +779,170 @@ endif // (@export_DFA)
 
 //===- Generate list of relevant objects for PQL code export -===
 
-if (@export_PQL OR @export_XML) then
+If (@export_PQL OR @export_XML) Then
 
   // create set of classes to export
   @classSetToExport    = createSet({});
   @templateSetToExport = createSet({});
   @instanceSetToExport = createSet({});
+  
+  // optimization to avoid unncessary wildcard searches (only if filtering by framework is used)
+  // all objects of the specified type will be queried directly as children of the provided frameworks later.
+  @skipSearch = { false, false, false };
+  If (@filterByFrameworks) Then
+    @skipSearch = {
+      (InArray(@exportDefinitionsPql, @WILDCARD_SEARCHES[@OBJECT_TYPE_CLASSES])),   // 1. classes
+      (InArray(@exportDefinitionsPql, @WILDCARD_SEARCHES[@OBJECT_TYPE_TEMPLATES])), // 2. templates
+      (InArray(@exportDefinitionsPql, @WILDCARD_SEARCHES[@OBJECT_TYPE_INSTANCES]))  // 3. instances
+    };
+  EndIf
+ 
+  If (@verboseLevel > 2) Then
+    @idx = 1;
+    ForEach @entry In (@skipSearch)
+      If (@entry) Then 
+        Message(@MSG_INFO, 'Wildcard selector for '+@EXPORTDEF_MATCH_TABLE[@idx][2]+' found. Search will be skipped..');
+      EndIf
+      @idx++;
+    Next
+  EndIf
 
-  forEach @entry in (@exportDefinitionsPql)
+  // built lost of properties to return in class query result set
+  @propertyList = Array();
+  ForEach @entry in (@classMetadataTable)
+    @requiredBinVersion = @entry[4];
+    If (@binVersion >= @requiredBinVersion) Then
+      @propertyList = InsertValue(@propertyList, '$'+@entry[1]);
+    EndIf
+  Next
 
-    if (Trim(@entry)=="") then next; endif // ignore empty lines
-    @ignoreEntry = false;
+  ForEach @exportDef In (@exportDefinitionsPql)
+
+    If (Left(@exportDef,1)=='#' OR Trim(@exportDef)=="") Then
+      Next; // ignore comments and empty lines
+    EndIf
+  
+    @matchFound = false;
+    ForEach @entry In (@EXPORTDEF_MATCH_TABLE)
+      @objType         = @entry[1];
+      @objTypeName     = @entry[2];
+      @matchExpression = @entry[3];
+      @match = RegExpMatch(@exportDef, @matchExpression);
+   
+      If (Count(@match)) Then
+        @matchFound = true;
+        @objClass = @match[2];
+        @objName  = @match[3];
+        If (@objClass=="" AND @objType==1) Then @objClass='*'; EndIf
+        Break;
+      EndIf
+    Next
     
-    // determine type of objects defined by current entry
-    // type prefix is optional for classes and templates (C: and T:) but required for instances (I:)
-    @entryDefinesInstances = (left(@entry,3)=='I:<' && pos('>',@entry)>0);
-    if (@entryDefinesInstances) then
-      @objType = @OBJECT_TYPE_INSTANCES;
-    else
-      @entryDefinesTemplates = ((left(@entry,1)=='<' || left(@entry,3)=='T:<') && (pos('>',@entry)>0)); 
-      if (@entryDefinesTemplates) then
-        @objType = @OBJECT_TYPE_TEMPLATES; 
-      else
-        // for classes, the object type definition is not needed
-        @objType = @OBJECT_TYPE_CLASSES;
-      endif
-    endif  
+    If (!@matchFound) Then
+      Message(@MSG_WARNING, ' Export definition "'+@exportDef+'" is not valid and will be ignored. Please check the syntax.');
+      Next;
+    EndIf  
+    
+    // if there is a unlimited wildcard search defined anyway, it does not make sense to search for a subset of the same object type here
+    If (@skipSearch[@objType]) Then
+      Next;
+    EndIf
+    
+    If (@verboseLevel > 1) then
+      Message(@MSG_INFO, ' Searching for '+@objTypeName+' of type '+@objClass+' and name "'+@objName+'"..');
+    EndIf
+    
+    Select(@objType)
+    
+      Case 1: // classes
+        If (@includeVersionChain) Then
+          $0($im):    @set = $Search($classes of *:.$internalname like @objName).@propertyList;
+        Else
+          $0($v,$im): @set = $Search($classes of *:.$internalname like @objName).@propertyList;
+        EndIf  
+        @classSetToExport = Union(@set, @classSetToExport);
+        Break;
+        
+      Case 2: // templates
+        If (@includeVersionChain) Then
+          $0($im):    @set = $Search($templates of @objClass:.$name like @objName).@sysattrList;
+        Else
+          $0($v,$im): @set = $Search($templates of @objClass:.$name like @objName).@sysattrList;
+        EndIf
+        @templateSetToExport = Union(@set, @templateSetToExport);
+        Break;
+          
+      Case 3: // instances
+        If (@includeVersionChain) Then
+          $0($im):    @set = $Search($instances of @objClass:.$name like @objName).@sysattrList;
+        else
+          $0($v,$im): @set = $Search($instances of @objClass:.$name like @objName).@sysattrList;
+        EndIf
+        @instanceSetToExport = Union(@set, @instanceSetToExport);
+        Break;
+        
+    EndSelect
+    If (@verboseLevel > 3) Then
+      Message(@MSG_INFO, '  -> Found '+count(@set)+' '+@objTypeName);
+    EndIf  
+   
+  Next
+  
+  @objectCountTable = { Count(@classSetToExport), Count(@templateSetToExport), Count(@instanceSetToExport) };
+  If (@verboseLevel > 1) Then
+    @idx = 1;
+    ForEach @entry In (@skipSearch)
+      If (!@entry) Then
+        @msgTrailer = ' for export';
+        If (@filterByFrameworks) Then @msgTrailer = ' that match export definitions'; EndIf
+        Message(@MSG_INFO, 'Found '+@objectCountTable[@idx]+' '+@EXPORTDEF_MATCH_TABLE[@idx][2] + @msgTrailer);
+      EndIf
+      @idx++;
+    Next
+  EndIf
 
-    if (@entryDefinesInstances OR @entryDefinesTemplates) then
-      @pos1 = pos('<',@entry);
-      @pos2 = pos('>',@entry);
-      @objClass = subStr(@entry, @pos1+1, @pos2-@pos1-1);
-      @objName  = subStr(@entry, @pos2+1);
-      if (@objClass=="") then
-        @ignoreEntry=true;
-      endif  
-      if (@objName=="") then 
-        @objName='*'; 
-      endif
-    else
-      @objClass = '*';
-      @objName = @entry;
-      if (left(@entry,2)=='C:') then
-        @objName = right(@entry, length(@entry)-2);
-      endif
-      if (@objName=="") then 
-        @ignoreEntry=true; 
-      endif
-    endif
+  If (@filterByFrameworks) Then
+    $0($v,$im): @classesFw   = @frameworkSet\($Classes   Of *:).@propertyList;
+    $0($v,$im): @templatesFw = @frameworkSet\($Templates Of *:).@sysattrList;
+    $0($v,$im): @instancesFw = @frameworkSet\($Instances Of *:).@sysattrList;
+    @objectCountTableFw = { Count(@classesFw), Count(@templatesFw), Count(@instancesFw) };
+    If (@verboseLevel > 1) Then
+      @idx = 1;
+      ForEach @entry In (@objectCountTableFw)
+        Message(@MSG_INFO, 'Found '+@entry+' '+@EXPORTDEF_MATCH_TABLE[@idx][2]+' that belong to selected frameworks');
+        @idx++;
+      Next
+    EndIf
 
-    if (@ignoreEntry) then
-      message(@MSG_WARNING, ' Entry "'+@entry+'" in "Export Definitions Pql" is not correct and will be ignored. Please check the syntax.');
-    else
-      if (@verboseLevel > 1) then
-        message(@MSG_INFO, ' Searching for '+@OBJECT_TYPE_TABLE[@objType]+' of type '+@objClass+' with name like "'+@objName+'"...');
-      endif  
-      select(@objType)
-        case 1:
+    If (@skipSearch[@OBJECT_TYPE_CLASSES]) Then
+      @classSetToExport = @classesFw;
+    Else
+      @classSetToExport = Intersection(@classSetToExport, @classesFw);
+    EndIf 
+    If (@skipSearch[@OBJECT_TYPE_TEMPLATES]) Then
+      @templateSetToExport = @templatesFw;
+    Else
+      @templateSetToExport = Intersection(@templateSetToExport, @templatesFw);
+    EndIf
+    If (@skipSearch[@OBJECT_TYPE_INSTANCES]) Then
+      @instanceSetToExport = @instancesFw;
+    Else
+      @instanceSetToExport = Intersection(@instanceSetToExport, @instancesFw);
+    EndIf 
+    
+    @objectCountTable = { Count(@classSetToExport), Count(@templateSetToExport), Count(@instanceSetToExport) };
+    If (@verboseLevel > 1) Then
+      @idx = 1;
+      ForEach @entry in (@objectCountTable)
+        Message(@MSG_INFO, 'Found '+@entry+' '+@EXPORTDEF_MATCH_TABLE[@idx][2]+' that match export definitions and framework filter');
+        @idx++;
+      Next
+    EndIf    
 
-          @propertyList = Array();
-          ForEach @entry in (@classMetadataTable)
-            @requiredBinVersion = @entry[4];
-            if (@binVersion >= @requiredBinVersion) then
-            @propertyList = InsertValue(@propertyList, '$'+@entry[1]);
-            endif
-          Next
+  EndIf
 
-          if (@includeVersionChain) then
-            $0($im):    @set = $search($classes of *:.$internalname like @objName).@propertyList;
-          else
-            $0($v,$im): @set = $search($classes of *:.$internalname like @objName).@propertyList;
-          endif  
-          @classSetToExport = union(@set, @classSetToExport);
-          break;
-        case 2:
-          if (@includeVersionChain) then
-            $0($im):    @set = $search($templates of @objClass:.$name like @objName).$id,$internalname,$displayname,$created,$Modified,$Author,$Inheritance,$Logicalguid,$VersionGUID,$Enginestatus,$ObjectDescription,$Background,$Icon,$ObjType,*;
-          else
-            $0($v,$im): @set = $search($templates of @objClass:.$name like @objName).$id,$internalname,$displayname,$created,$Modified,$Author,$Inheritance,$Logicalguid,$VersionGUID,$Enginestatus,$ObjectDescription,$Background,$Icon,$ObjType,*;
-          endif
-          @templateSetToExport = union(@set, @templateSetToExport);
-          break;
-        case 3:
-          if (@includeVersionChain) then
-            $0($im):    @set = $search($instances of @objClass:.$name like @objName).$id,$internalname,$displayname,$created,$Modified,$Author,$Inheritance,$Logicalguid,$VersionGUID,$ObjectDescription,$Background,$Icon,$ObjType,*;
-          else
-            $0($v,$im): @set = $search($instances of @objClass:.$name like @objName).$id,$internalname,$displayname,$created,$Modified,$Author,$Inheritance,$Logicalguid,$VersionGUID,$ObjectDescription,$Background,$Icon,$ObjType,*;
-          endif
-          @instanceSetToExport = union(@set, @instanceSetToExport);
-          break;
-      endselect
-      if (@verboseLevel > 1) then
-        message(@MSG_INFO, '  -> Found '+count(@set)+' '+@OBJECT_TYPE_TABLE[@objType]+' to export');
-      endif  
-    endif
-  next
-  @classCount    = count(@classSetToExport);
-  @templateCount = count(@templateSetToExport);
-  @instanceCount = count(@instanceSetToExport);
-endif // (@export_PQL OR @export_XML)
+
+EndIf // (@export_PQL OR @export_XML)
 
 
 
@@ -856,9 +976,16 @@ forEach @class in (@classSetToExport)
 
   if (@export_PQL) then
     if (@verboseLevel>2) then
-      message(@MSG_INFO, ' -> Extracting PQL code from class "'+@className+'" ['+@class.$id+']  ('+@classIdx+' of '+@classCount+')');
+      message(@MSG_INFO, ' -> Extracting PQL code from class "'+@className+'" ['+@class.$id+']  ('+@classIdx+' of '+@objectCountTable[@OBJECT_TYPE_CLASSES]+')');
     endif
-    @attributeDefinitionSet = @class\$AttrDef.$AttrId,$AttrNameVisible,$AttrNameIntern,$Constraints,$Range,$ViewConstraints,$EditConstraints,$EditMode,$Substitutions;
+    @propertyList = Array('$AttrId','$AttrNameVisible','$AttrNameIntern','$EditMode');
+    ForEach @entry in (@attributePropertyTable)
+      @requiredBinVersion = @entry[5];
+      if (@binVersion >= @requiredBinVersion) then
+        @propertyList = InsertValue(@propertyList, @entry[1]);
+      endif
+    Next
+    @attributeDefinitionSet = @class\$AttrDef.@propertyList;
     forEach @attribute in (@attributeDefinitionSet)
       @attributeName = @attribute.$AttrNameIntern;
       forEach @entry in (@attributePropertyTable)
@@ -894,14 +1021,21 @@ forEach @class in (@classSetToExport)
 
 //===- Extract PQL code from method definitions -===
 
-    @methodDefinitionSet = @class\$MethDef.$MethId,$MethNameVisible,$MethNameIntern,$PreConstraints,$PostConstraints,$ImplementationName,$Description,$Type,$Param,$Paramcount;
-    
+    @propertyList = Array('$MethId','$MethNameVisible','$MethNameIntern','$ImplementationName','$Description','$Type','$Param','$Paramcount');
+    ForEach @entry in (@methodPropertyTable)    
+      @requiredBinVersion = @entry[3];
+      if (@binVersion >= @requiredBinVersion) then
+        @propertyList = InsertValue(@propertyList, @entry[1]);
+      endif
+    Next
+    @methodDefinitionSet = @class\$MethDef.@propertyList;
+
     forEach @method in (@methodDefinitionSet)
       @methodName = @method.$MethNameIntern;
       @methodId = @method.$MethId;
       @methodImplName = @method.$ImplementationName;
       // append method ID as suffix to filename if there are multiple methods with same internal name
-      @isMethodNameUnique = (Count(@methodDefinitionSet\$Subset(.$MethNameIntern==@methodName))<=1);
+      @isMethodNameUnique = (Count(@methodDefinitionSet\$Subset(*:.$MethNameIntern==@methodName).$MethNameIntern)<=1);
       @methodNameSuffix = "";
       if (!@isMethodNameUnique) then
         @methodNameSuffix = @methodIdSeparator + @hexIdPrefix + format(@hexFormatString,@methodId);
@@ -909,15 +1043,18 @@ forEach @class in (@classSetToExport)
 
       // process method properties     
       forEach @entry in (@methodPropertyTable)
-        @methodPropertyNameIntern  = @entry[1];
-        @methodPropertyNameVisible = @entry[2];
-        @content = @method.@methodPropertyNameIntern;
-        if (Left(@content,4) like 'PQL:') then
-          @content = Right(@content,Length(@content)-4);          
-          @fileName = @classPrefix + @className + @classMethodSeparator + @methodName + @propertySeparator + 
-            @methodPropertyNameVisible + @methodNameSuffix + @fileNameAppendix + @FILE_EXTENSION_PQL;
-          @codeExportTableEntry = {'PQL', @fileName,@content,""}; 
-          @codeExportTable = InsertValue(@codeExportTable,@codeExportTableEntry);
+        @requiredBinVersion = @entry[3];
+        if (@binVersion >= @requiredBinVersion) then
+          @methodPropertyNameIntern  = @entry[1];
+          @methodPropertyNameVisible = @entry[2];
+          @content = @method.@methodPropertyNameIntern;
+          if (Left(@content,4) like 'PQL:') then
+            @content = Right(@content,Length(@content)-4);          
+            @fileName = @classPrefix + @className + @classMethodSeparator + @methodName + @propertySeparator + 
+              @methodPropertyNameVisible + @methodNameSuffix + @fileNameAppendix + @FILE_EXTENSION_PQL;
+            @codeExportTableEntry = {'PQL', @fileName,@content,""}; 
+            @codeExportTable = InsertValue(@codeExportTable,@codeExportTableEntry);
+          endif;
         endif;
       next
       
@@ -964,14 +1101,17 @@ forEach @class in (@classSetToExport)
           @fileHeader += ' *   Description:     '+@method.$Description+@CR;
 
           ForEach @methodProperty in (@methodPropertyTable)
-            @content = @method.@methodProperty[1];
-            @content = Substitute(@content,@STAR+'/','* /'); 
-            if (Left(@content,4) like 'PQL:') then
-              @content = Right(@content,Length(@content)-4);
-              @content = Substitute(@content, @CR, @CR+' *      ');  
-              @content = @CR+' *      '+@content;            
+            @requiredBinVersion = @entry[3];
+            if (@binVersion >= @requiredBinVersion) then
+              @content = @method.@methodProperty[1];
+              @content = Substitute(@content,@STAR+'/','* /'); 
+              if (Left(@content,4) like 'PQL:') then
+                @content = Right(@content,Length(@content)-4);
+                @content = Substitute(@content, @CR, @CR+' *      ');  
+                @content = @CR+' *      '+@content;            
+              endif;
+              @fileHeader += ' *   '+@methodProperty[2]+':  '+@content+@CR;
             endif;
-            @fileHeader += ' *   '+@methodProperty[2]+':  '+@content+@CR;
           Next
 
           @fileHeader += ' *   Parameter:     '+@CR;
@@ -1023,7 +1163,7 @@ forEach @class in (@classSetToExport)
     @xml_TRAILER += '</envelope>';
 
     if (@verboseLevel>2) then
-      message(@MSG_INFO, ' -> Creating XML output for class "'+@className+'" ['+@class.$id+']  ('+@classIdx+' of '+@classCount+')');
+      message(@MSG_INFO, ' -> Creating XML output for class "'+@className+'" ['+@class.$id+']  ('+@classIdx+' of '+@objectCountTable[@OBJECT_TYPE_CLASSES]+')');
     endif
 
     // create XML output for current class definition
@@ -1078,8 +1218,7 @@ forEach @class in (@classSetToExport)
           @featurePropertyTable = @paramDefMetadataTable;
       EndSelect
 
-      @propertyList = Array();
-      
+      @propertyList = Array();  
       ForEach @entry in (@featurePropertyTable)
         @requiredBinVersion = @entry[4];
         if (@binVersion >= @requiredBinVersion) then
@@ -1107,9 +1246,10 @@ forEach @class in (@classSetToExport)
           @featureProperties  = @class\$StateDef.@propertyList;
           break;
         Case 'ParamDef':
-          @featureProperties  = fromMem(@class\$MethDef(.$MethId==@currentMethodId).$ParamDef);
+          @paramDefAttr = '$ParamDef';
+          @featureProperties  = fromMem(@class\$MethDef(.$MethId==@currentMethodId).@paramDefAttr);
           // add column for 'DelegationAnchor' in case its missing
-          @isParamDefIncomplete = Count(@featureProperties\$subset(.DelegationAnchor!=$invalid).InternalName)==0;
+          @isParamDefIncomplete = Count(@featureProperties\$subset(*:.DelegationAnchor!=$invalid).InternalName)==0;
           if (@isParamDefIncomplete) then
             @featureProperties = @featureProperties\$subset.($invalid) as "DelegationAnchor",*;
           endif
@@ -1226,20 +1366,33 @@ forEach @class in (@classSetToExport)
             @multiLine = (length(@propertyValueNew) > @xml_base64charsPerLine) OR @generateXmlComment;      
             if (@generateXmlComment) then
               @propertyValueComment = @propertyValueOrig;
+              @propertyTableIndex = Toint(@propertyValueOrig);
+              If (@propertyTableIndex==$Invalid) Then 
+                @propertyTableIndex = 0; 
+              EndIf
               Select (@propertyEncode)
                 Case 0: break;
-                Case 3: 
-                  @propertyValueComment = @attrTypeTable[Toint(@propertyValueOrig)];
+                Case 3:
+                  if (@propertyTableIndex<=Count(@attrTypeTable)) then
+                    @propertyValueComment = @attrTypeTable[@propertyTableIndex];
+                  endif
                   break;
                 Case 4:
-                  @propertyValueComment = @transEventTypeTable[Toint(@propertyValueOrig)+1];
+                  if (@propertyTableIndex<=Count(@transEventTypeTable)) then
+                    @propertyValueComment = @transEventTypeTable[@propertyTableIndex+1];
+                  endif
                   break;
                 Case 5:
-                  @propertyValueComment = @class\$StateDef(.$StateId==Toint(@propertyValueOrig)).$StateNameVisible;
+                  @propertyValueComment = @class\$StateDef(.$StateId==@propertyTableIndex).$StateNameVisible;
                   break;
                 Case 6:
                   if (IsObjRef(@propertyValue) AND @propertyValue!=0.0.0.ffff) then
                     @propertyValueComment = @attribute\@propertyDollar.$name;
+                  endif
+                  break;
+                Case 7:
+                  if (@propertyTableIndex<=Count(@classUsageTable)) then
+                    @propertyValueComment = @classUsageTable[@propertyTableIndex+1];
                   endif
                   break;
               EndSelect
@@ -1369,6 +1522,7 @@ if (@export_PQL) then
     else
       @filenameNs = @templateNamingScheme;
     endif
+   
     // supported variables: <OID>, <LGUID>, <CLASS_NAME>, <OBJ_NAME>, <DATE_CREATED>, <DATE_MODIFIED>, <CREATOR>, <ATTR_NAME>
     // example naming scheme: (T)<CLASS_NAME>_-_<OBJ_NAME>_<ATTR_NAME>_<LGUID>_<OID>
     @filenameNs = Substitute(@filenameNs, '<OID>',           toString(@objId));
@@ -1387,14 +1541,15 @@ if (@export_PQL) then
         @filenameAppendix = @filenameComponentSeparator + @creationDate;
       endif
     endif  
-    @pqlAttrList = @obj\$inheritance\$attrdef(.$EditMode like @EDITMODE_PQLSTATEMENT).$attrnameintern groupby $attrnameintern;  
+    @pqlAttrSet  = @obj\$inheritance\$attrdef(.$EditMode like @EDITMODE_PQLSTATEMENT).$attrnameintern groupBy $attrnameintern;
+    @pqlAttrList = ToArray(@pqlAttrSet);
+    @obj = @obj\$Reload(*:).@sysattrList,@pqlAttrList;
+    forEach @attr in (@pqlAttrSet)
     
-    forEach @attr in (@pqlAttrList)
       @attrName = @attr.$attrnameintern;
       @pqlStatement = @obj.@attr;
       @pqlStatementLen = length(@pqlStatement);
-
-      @filename = Substitute(@filenameNs, '<ATTR_NAME>', @attrName); 
+      @filename = Substitute(@filenameNs, '<ATTR_NAME>', @attrName);
       @filename += (@filenameAppendix + @FILE_EXTENSION_PQL);
       forEach @char in (@FILENAME_FORBIDDEN_CHARS)
         @filename = Substitute(@filename, @char, @invalidCharReplacement);
@@ -1643,15 +1798,15 @@ if (@verboseLevel > 0) then
   message(@MSG_INFO, '');
   message(@MSG_INFO, '');
   message(@MSG_INFO, '*** SUMMARY ***' + @simulationMessage);
-  message(@MSG_INFO, '--------------------------------------------------------------------------------------------------');
+  message(@MSG_INFO, '------------------------------------------------------------------------------------------------');
   message(@MSG_INFO,' '+ Right(toString(@objCountPQL),5,' ') + ' PQL files exported to '+@exportPath+@exportFolderPQL);
-  if (@export_PQL && (@instanceCount>0 || @templateCount>0)) then
+  if (@export_PQL && (@objectCountTable[@OBJECT_TYPE_TEMPLATES]>0 || @objectCountTable[@OBJECT_TYPE_INSTANCES]>0)) then
   message(@MSG_INFO,' '+ '      (including ' + @instancePqlCount + ' PQLs from instances and '+@templatePqlCount+' PQLs from templates)');
   endif
   message(@MSG_INFO,' '+ Right(toString(@objCountDFA),5,' ') + ' DocDef/Include files exported to '+@exportPath+@exportFolderDFA);
   message(@MSG_INFO,' '+ Right(toString(@objCountXML),5,' ') + ' XML files exported to '+@exportPath+@exportFolderXML);
   message(@MSG_INFO, @codeCheckMessage);
-  message(@MSG_INFO, '==================================================================================================');
+  message(@MSG_INFO, '================================================================================================');
   message(@MSG_INFO, ''); 
 endif // (@verboseLevel > 0)
 

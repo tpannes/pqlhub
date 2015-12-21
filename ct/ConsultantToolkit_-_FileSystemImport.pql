@@ -1,0 +1,17 @@
+
+@self = $Self.$Id,*;
+
+@fsSourceDir         = @self.FilesystemImportSourceDirectory;
+@poRootFolder        = @self.FilesystemImportTargetFolder;
+@excludeFilePatterns = @self.FilesystemImportExcludeFilePatterns;
+@excludeDirPatterns  = @self.FilesystemImportExcludeDirectoryPatterns;
+@useVersionedObjects = @self.FilesystemImportUseVersionedObjects;
+@createRootFolder    = @self.FilesystemImportCreateRootFolder;
+@executeLocally      = @self.FilesystemImportExecuteLocally;
+@simulationMode      = @self.FilesystemImportSimulationMode;
+@verboseLevel        = @self.VerboseLevel;
+
+@rc = @self.FileSystemImportGeneric(@fsSourceDir, @poRootFolder, @excludeFilePatterns, @excludeDirPatterns, 
+  @useVersionedObjects, @createRootFolder, @executeLocally, @simulationMode, @verboseLevel);  
+
+Return @rc;
