@@ -174,7 +174,7 @@ Next
 
 
 // 6. update version information
-@updateUrl = @updateURL + @VERSION_FILE;
+@updateUrl = @updateBaseURL + @VERSION_FILE;
 $local($ie): @tempData.TargetName = @updateUrl;
 if ($Error) then
   message(@MSG_WARNING, '['+@class+'::'+@method+'] Could not find resource at '+@updateUrl);
@@ -196,9 +196,10 @@ FileClose(@fileHandle);
 @attrDef.VisibleForEdit  = true;
 @attrDef.ViewConstraints = 'ObjType==1';
 
-@self.DeleteAttributeDefinition(@attrId);
-@attrDef.Create(@self).Return1; 
-
+if (!@simulate) then
+  @self.DeleteAttributeDefinition(@attrId);
+  @attrDef.Create(@self).Return1; 
+endif
 
 if (@verboseLevel>0) then
   message(@MSG_INFO, '=== Finished Online-Update === ['+Count(@methodsToUpdate)+' methods processed, '+Count(@updateBuffer)+' updated]');
