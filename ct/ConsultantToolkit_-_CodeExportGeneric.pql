@@ -1,4 +1,4 @@
-/* v4.9
+/* v4.96
  *
  *    .d8888b.                888          8888888888                                    888
  *   d88P  Y88b               888          888                                           888
@@ -146,6 +146,12 @@
  *   v4.9:
  *      - fixed bug where $Range property was not exported correctly when it contained PQL code
  *      - added support for new properties (e.g. for structs)
+ *   v4.91:
+ *      - bugfix: substitutions of $EditComboBox properties were not exported
+ *   v4.95:
+ *      - added support for additional properties (v7.19 ones + some old ones that were missing from the beginning)
+ *   v4.96:
+ *      - added support for Project(-management) scope filter, e.g. to export PQLs of objects from certain projects only
  *
  *  
  *   Known issues (will not affect functionality)
@@ -164,7 +170,7 @@ Option ExecutionFlags = $io, $im;
 // (number in square brackets shows to which parameter the variable corresponds when script is called from external)
 @exportDefinitionsPql       = Array();   // [1] set of classes and/or templates and/or instances for PQL export
 @exportDefinitionsResources = Array();   // [2] set of DFAs/INCs that will be exported
-@fwFilterDefinitions = $Invalid;         // [3] defines a set of frameworks / framework folders as a search result filter  
+@scopeDefinitions = $Invalid;            // [3] defines a set of frameworks / framework folders as a search result filter  
 @exportPathBase = "C:\CodeExport\";      // [4] output folder path (a new subfolder will be created within this folder each time the script runs)
 @export_PQL = true;                      // [5.1] switch to toggle export of PQL code
 @export_DFA = true;                      // [5.2] switch to toggle export of DFAs / INCs
@@ -219,7 +225,7 @@ Option ExecutionFlags = $io, $im;
 
 
 // constants
-@VERSION     = "v4.9";
+@VERSION     = "v4.96";
 @MSG_ERROR   = 'PFGM0001E';
 @MSG_WARNING = 'PFGM0002W';
 @MSG_INFO    = 'PFGM0003I';
@@ -269,12 +275,12 @@ if (@externalCall) then
   if ( @exportDefinitionsPqlDefined || @exportDefinitionsResourcesDefined ) then
     if (@exportDefinitionsPqlDefined)       then @exportDefinitionsPql       = $param1; endif
     if (@exportDefinitionsResourcesDefined) then @exportDefinitionsResources = $param2; endif
-    @fwFilterDefinitions = $param3;
-    @exportPathBase      = $param4;
-    @exportTypes         = toInt($param5);
-    @export_PQL = (@exportTypes & 1) >0; // lowest bit defines if PQL code is exported
-    @export_DFA = (@exportTypes & 2) >0; // second lowest bit defines if DFA code is exported
-    @export_XML = (@exportTypes & 4) >0; // third lowest bit defines if class definitions are exported in XML format
+    @scopeDefinitions = $param3;
+    @exportPathBase   = $param4;
+    @exportTypes      = toInt($param5);
+    @export_PQL       = (@exportTypes & 1) >0; // lowest bit defines if PQL code is exported
+    @export_DFA       = (@exportTypes & 2) >0; // second lowest bit defines if DFA code is exported
+    @export_XML       = (@exportTypes & 4) >0; // third lowest bit defines if class definitions are exported in XML format
     if ($param6 !=$invalid) then 
       @flags    = $param6;
       @simulateExport              = (@flags &  1) > 0;  
@@ -327,7 +333,7 @@ endif
 // human readable description of attibute types
 @attrTypeTable = Array('1','2','3','4','Integer','6','Float','String','9','Memory','Objref','12','Date/Time','14','Binary',
                        'Boolean','Binary remote','18','19','20','21','22','23','24','25','26','27','28','29','30','31','Date',
-                       'Time','34','35','36','GUID','38','AttrDefKey','40','41','ProcAddr');
+                       'Time','34','35','36','GUID','38','AttrDefKey','40','41','ProcAddr','43','Struct');
 
 // human readable description of specific property values (attention: related values are zero based!)
 @transEventTypeTable = Array('Call','Absolute time','Relative time','Change','Call tool','Call material','Program');
@@ -339,7 +345,7 @@ endif
 @sysattrList = {"$Id","$InternalName","$DisplayName","$Created","$Modified","$Author","$Inheritance","$LogicalGUID","$VersionGUID","$Enginestatus","$ObjectDescription","$Background","$Icon","$ObjType" };
 
 // prefixes in attribute properties that indicate PQL code
-@propertyPrefixPQLTable      = Array('Pqlstatement=', 'PQL:');
+@propertyPrefixPQLTable      = Array('Pqlstatement=', 'PQL:', 'Pql:');
 @propertyPrefixPQLTableCount = count(@propertyPrefixPQLTable);
 
 // List of method properties that may contain PQL code ($Param is not covered here as its treated separately)
@@ -347,17 +353,19 @@ endif
 @methodPropertyTable = Array(
 {'$PreConstraints'              ,   'PreConstraints'              , 7.00       },
 {'$PostConstraints'             ,   'Expression'                  , 7.00       },
-{'$ExecuteWithOmsAccountScript' ,   'ExecuteWithOmsAccountScript' , 7.17014313 }
+{'$ExecuteWithOmsAccountScript' ,   'ExecuteWithOmsAccountScript' , 7.17014313 },
+{'$LinePar'                     ,   'LinePar'                     , 7.00       },
+{'$EnvironmentVariables'        ,   'EnvironmentVariables'        , 7.16       }
 );
 
 // List of attribute properties that may contain PQL code
 // [Internal name   |   Visible Name      | Is Array | Only valid for $EditMode | Required binary version]
 @attributePropertyTable = Array(
-{'$Constraints'     ,   'Constraints'     , 0, '*'                         , 7.00},
-{'$Range'           ,   'InputRange'      , 0, '*'                         , 7.00},
-{'$ViewConstraints' ,   'ViewConstraints' , 0, '*'                         , 7.00},
-{'$EditConstraints' ,   'EditConstraints' , 0, '*'                         , 7.00},
-{'$Substitutions'   ,   'Substitutions'   , 1, {'MultiListBox', 'ComboBox'}, 7.00}
+{'$Constraints'     ,   'Constraints'     , 0, '*'                                         , 7.00},
+{'$Range'           ,   'InputRange'      , 0, '*'                                         , 7.00},
+{'$ViewConstraints' ,   'ViewConstraints' , 0, '*'                                         , 7.00},
+{'$EditConstraints' ,   'EditConstraints' , 0, '*'                                         , 7.00},
+{'$Substitutions'   ,   'Substitutions'   , 1, {'MultiListBox', 'ComboBox', 'EditComboBox'}, 7.00}
 );
 
 // Class feature table
@@ -383,21 +391,26 @@ endif
 {'Internalname'                 ,0,0, 7.00}, // Internal name
 {'Logicalguid'                  ,0,0, 7.00}, // Logical GUID
 {'VersionGUID'                  ,0,0, 7.00}, // Version GUID
-{'Constraints'                  ,0,0, 7.00}, // Constraints      
 {'Created'                      ,0,0, 7.00}, // Creation Date
 {'Modified'                     ,0,0, 7.00}, // Modify Date
 {'Author'                       ,0,6, 7.00}, // Author
 {'Inheritance'                  ,1,0, 7.00}, // Inheritance
+{'Constraints'                  ,0,0, 7.00}, // Constraints
+{'DontInheritMethods'           ,0,0, 7.00}, // Don't inherit methods from parent
+//{'PolicyIds'                    ,0,0, 7.00}, // Policy IDs
+{'MatchAll'                     ,0,0, 7.00}, // Match all object     
 {'Enginestatus'                 ,0,0, 7.00}, // Initial state
-{'ObjectDescription'            ,0,1, 7.00}, // Object Description
-{'Background'                   ,0,0, 7.00}, // Background color
+{'EngineLastPar'                ,0,0, 7.00}, // Last event object ID
 {'Icon'                         ,0,2, 7.00}, // Icon reference
+{'Background'                   ,0,0, 7.00}, // Background color
+{'ObjectDescription'            ,0,1, 7.00}, // Object Description
+{'Docu'                         ,0,0, 7.00}, // Docu
 {'InstanceVersioning'           ,0,0, 7.14}, // Instance Versioning
 {'Accessibility'                ,0,0, 7.14}, // Accessibility
 {'Abstract'                     ,0,0, 7.14}, // Abstract
 {'Final'                        ,0,0, 7.14}, // Final
 {'ClassUsage'                   ,0,7, 7.18}, // Class usage
-{'TranslateName'                ,0,0, 7.18}  // Translate Name
+{'TranslateName'                ,0,0, 7.18} // Translate Name
 );
 
 @attributeMetadataTable = Array(
@@ -428,7 +441,8 @@ endif
 {'TranslateContent'             ,0,0, 7.00}, // Translate Content
 {'Docu'                         ,1,0, 7.00}, // Docu
 {'CalculateDefaultValue'        ,0,0, 7.16}, // Calculate default
-{'Accessibility'                ,0,0, 7.16}  // Accessibility
+{'Accessibility'                ,0,0, 7.16}, // Accessibility
+{'Relationship'                 ,0,0, 7.19}  // Relationship
 );
 
 @methodMetadataTable = Array(
@@ -465,7 +479,7 @@ endif
 {'Docu'                         ,1,0, 7.00}, // Docu
 {'DisabledIfLockedForEdit'      ,0,0, 7.16}, // Disabled if locked for edit
 {'ParamDef'                     ,0,0, 7.16}, // (memory buffer containing all parameter definitions)
-{'EnvironmentVariables'         ,0,0, 7.16}, // Environment Variable [ImplementedBy=EYE|Shell]
+{'EnvironmentVariables'         ,1,0, 7.16}, // Environment Variable [ImplementedBy=EYE|Shell]
 {'ShellMode'                    ,0,0, 7.16}, // Shell Mode
 {'ShellName'                    ,0,0, 7.16}, // Shell Name [ShellMode=2]
 {'ParamHandling'                ,0,0, 7.16}, // Parameter Handling [ShellMode=2]
@@ -496,7 +510,8 @@ endif
 {'DeleteConstraints'            ,0,0, 7.16}, // Delete Constraints
 {'MovePrivileges'               ,1,0, 7.00}, // Move Privilege
 {'MoveConstraints'              ,0,0, 7.16}, // Move Constraints
-{'Docu'                         ,1,0, 7.00}  // Docu
+{'Docu'                         ,1,0, 7.00}, // Docu
+{'Relationship'                 ,0,0, 7.19}  // Relationship
 );
 
 @childDefMetadataTable = Array(
@@ -519,7 +534,8 @@ endif
 {'MovePrivileges'               ,1,0, 7.00}, // Move Privilege
 {'MoveConstraints'              ,0,0, 7.16}, // Move Constraints
 {'SearchQuickLaunch'            ,0,0, 7.00}, // Search Quick Launch
-{'Docu'                         ,1,0, 7.00}  // Docu
+{'Docu'                         ,1,0, 7.00}, // Docu
+{'Relationship'                 ,0,0, 7.19}  // Relationship
 );
 
 @stateTransDefMetadataTable = Array(
@@ -721,21 +737,23 @@ if (@verboseLevel > 3) then
 endif 
 
 
-@filterByFrameworks = (Count(@fwFilterDefinitions)>0);
-If (@filterByFrameworks) Then
+@filterByScope = (Count(@scopeDefinitions)>0);
+If (@filterByScope) Then
   If (@verboseLevel > 1) Then
-    Message(@MSG_INFO, 'Framework filtering is enabled');
+    Message(@MSG_INFO, 'Scope filtering is enabled');
   Endif
-  @frameworkSet1 = @fwFilterDefinitions\$Reload(Framework:).$Id,$LogicalGUID,$DisplayName;
-  @frameworkSet2 = @fwFilterDefinitions\$Reload(FrameworkFolder:)\(Framework:).$Id,$LogicalGUID,$DisplayName;
-  @frameworkSet = Union(@frameworkSet1, @frameworkSet2);
+  @scopeSet1 = @scopeDefinitions\$Reload(Framework:)                   .$Id,$LogicalGUID,$DisplayName;
+  @scopeSet2 = @scopeDefinitions\$Reload(FrameworkFolder:)\(Framework:).$Id,$LogicalGUID,$DisplayName;
+  @scopeSet3 = @scopeDefinitions\$Reload(Project:)                     .$Id,$LogicalGUID,$DisplayName;
+  @scopeSet4 = @scopeDefinitions\$Reload(ProjectManagement:)\(Project:).$Id,$LogicalGUID,$DisplayName;
+  @scopeSet  = Union(@scopeSet1, @scopeSet2, @scopeSet3, @scopeSet4);
   If (@includeVersionChain) Then
-    @fwGuidArray = toArray(@frameworkSet.$LogicalGUID);
-    $0($im): @frameworkSet = $Search($Instances Of Framework:.$LogicalGUID like @fwGuidArray).$Id,$DisplayName;
+    @scopeGuidArray = ToArray(@scopeSet.$LogicalGUID);
+    $0($im): @scopeSet = $Search($Instances Of Framework:.$LogicalGUID like @scopeGuidArray).$Id,$DisplayName;
   EndIf
   If (@verboseLevel > 3) Then
-    ForEach @fw in (@frameworkSet)
-      Message(@MSG_INFO, ' >> '+@fw.$DisplayName +' ['+@fw.$Id+']');
+    ForEach @scope in (@scopeSet)
+      Message(@MSG_INFO, ' >> '+@scope.$DisplayName +' ['+@scope.$Id+']');
     Next
   Endif
 EndIf
@@ -751,8 +769,8 @@ if (@export_DFA) then
   else
     $0($v,$im): @resourceSetToExport = $search($instances of DFA,INC:(.$name like @exportDefinitionsResources)).$id,$name,$created,Content,Type;
   endif
-  if (@filterByFrameworks) then
-    $0($v,$im): @resourceSetToExportFw = @frameworkSet\(DFA,INC:.$name like @exportDefinitionsResources).$id,$name,$created,Content,Type;
+  if (@filterByScope) then
+    $0($v,$im): @resourceSetToExportFw = @scopeSet\(DFA,INC:.$name like @exportDefinitionsResources).$id,$name,$created,Content,Type;
     @resourceSetToExport = Intersection(@resourceSetToExport, @resourceSetToExportFw);
   endif
 
@@ -786,10 +804,10 @@ If (@export_PQL OR @export_XML) Then
   @templateSetToExport = createSet({});
   @instanceSetToExport = createSet({});
   
-  // optimization to avoid unncessary wildcard searches (only if filtering by framework is used)
-  // all objects of the specified type will be queried directly as children of the provided frameworks later.
+  // optimization to avoid unncessary wildcard searches (only if scope filter is used)
+  // all objects of the specified type will be queried directly as children of the provided scope objects later.
   @skipSearch = { false, false, false };
-  If (@filterByFrameworks) Then
+  If (@filterByScope) Then
     @skipSearch = {
       (InArray(@exportDefinitionsPql, @WILDCARD_SEARCHES[@OBJECT_TYPE_CLASSES])),   // 1. classes
       (InArray(@exportDefinitionsPql, @WILDCARD_SEARCHES[@OBJECT_TYPE_TEMPLATES])), // 2. templates
@@ -894,47 +912,47 @@ If (@export_PQL OR @export_XML) Then
     ForEach @entry In (@skipSearch)
       If (!@entry) Then
         @msgTrailer = ' for export';
-        If (@filterByFrameworks) Then @msgTrailer = ' that match export definitions'; EndIf
+        If (@filterByScope) Then @msgTrailer = ' that match export definitions'; EndIf
         Message(@MSG_INFO, 'Found '+@objectCountTable[@idx]+' '+@EXPORTDEF_MATCH_TABLE[@idx][2] + @msgTrailer);
       EndIf
       @idx++;
     Next
   EndIf
 
-  If (@filterByFrameworks) Then
-    $0($v,$im): @classesFw   = @frameworkSet\($Classes   Of *:).@propertyList;
-    $0($v,$im): @templatesFw = @frameworkSet\($Templates Of *:).@sysattrList;
-    $0($v,$im): @instancesFw = @frameworkSet\($Instances Of *:).@sysattrList;
-    @objectCountTableFw = { Count(@classesFw), Count(@templatesFw), Count(@instancesFw) };
+  If (@filterByScope) Then
+    $0($v,$im): @classesInScope   = @scopeSet\($Classes   Of *:).@propertyList;
+    $0($v,$im): @templatesInScope = @scopeSet\($Templates Of *:).@sysattrList;
+    $0($v,$im): @instancesInScope = @scopeSet\($Instances Of *:).@sysattrList;
+    @objectCountTableFw = { Count(@classesInScope), Count(@templatesInScope), Count(@instancesInScope) };
     If (@verboseLevel > 1) Then
       @idx = 1;
       ForEach @entry In (@objectCountTableFw)
-        Message(@MSG_INFO, 'Found '+@entry+' '+@EXPORTDEF_MATCH_TABLE[@idx][2]+' that belong to selected frameworks');
+        Message(@MSG_INFO, 'Found '+@entry+' '+@EXPORTDEF_MATCH_TABLE[@idx][2]+' matching scope filter');
         @idx++;
       Next
     EndIf
 
     If (@skipSearch[@OBJECT_TYPE_CLASSES]) Then
-      @classSetToExport = @classesFw;
+      @classSetToExport = @classesInScope;
     Else
-      @classSetToExport = Intersection(@classSetToExport, @classesFw);
+      @classSetToExport = Intersection(@classSetToExport, @classesInScope);
     EndIf 
     If (@skipSearch[@OBJECT_TYPE_TEMPLATES]) Then
-      @templateSetToExport = @templatesFw;
+      @templateSetToExport = @templatesInScope;
     Else
-      @templateSetToExport = Intersection(@templateSetToExport, @templatesFw);
+      @templateSetToExport = Intersection(@templateSetToExport, @templatesInScope);
     EndIf
     If (@skipSearch[@OBJECT_TYPE_INSTANCES]) Then
-      @instanceSetToExport = @instancesFw;
+      @instanceSetToExport = @instancesInScope;
     Else
-      @instanceSetToExport = Intersection(@instanceSetToExport, @instancesFw);
+      @instanceSetToExport = Intersection(@instanceSetToExport, @instancesInScope);
     EndIf 
     
     @objectCountTable = { Count(@classSetToExport), Count(@templateSetToExport), Count(@instanceSetToExport) };
     If (@verboseLevel > 1) Then
       @idx = 1;
       ForEach @entry in (@objectCountTable)
-        Message(@MSG_INFO, 'Found '+@entry+' '+@EXPORTDEF_MATCH_TABLE[@idx][2]+' that match export definitions and framework filter');
+        Message(@MSG_INFO, 'Found '+@entry+' '+@EXPORTDEF_MATCH_TABLE[@idx][2]+' matching export definitions and scope filter');
         @idx++;
       Next
     EndIf    
