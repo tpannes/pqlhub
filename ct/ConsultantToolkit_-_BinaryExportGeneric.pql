@@ -1,4 +1,4 @@
-/* v1.3
+/* v1.4
  * PQL script "BinaryExportGeneric" created 2011 by TimoP
  * 
  * Description:  
@@ -21,15 +21,10 @@
  */
 
 
-@MSG_ERROR   = 'PFGM0001E';
-//@MSG_WARNING = 'PFGM0002W';
-@MSG_INFO    = 'PFGM0003I';
+
 @self   = $self.$id,$displayname,$node,$ClassGUID,*;
 @class  = @self\$ClassGUID.$InternalName;
-//@node   = @self.$node;
 @method = 'BinaryExportGeneric';
-@ATTR_TYPE_BINARY = 15;
-@DEFAULT_FILE_EXTENSION = 'dat';
 
 
 @sourceObject  = $param1;
@@ -37,6 +32,14 @@
 @exportPath    = $param3;
 @exportNode    = $param4;
 @verboseLevel  = $param5;
+
+@MSG_INFO               = 'PFGM0003I'; 
+@MSG_ERROR              = 'PFGM0001E'; 
+// @MSG_WARNING         = 'PFGM0002W';
+@ATTR_TYPE_BINARY       = 15;
+@DEFAULT_FILE_EXTENSION = 'dat';
+@DIR_SEPARATOR_WINDOWS  = '\';
+@DIR_SEPARATOR_UNIX     = '/';
 
 @fileTypeMappingTable = Array(
   {'dataAfpdsBinary','AFPDS_Name','afp'},
@@ -89,16 +92,25 @@ if (@attrCount==0) then
   message(@MSG_ERROR, '['+@class+'::'+@method+'] No attributes defined for export via $param2'); 
 endif
 
-@dirSeparators = array('/', '\');
-if (!(right(@exportPath,1) like @dirSeparators)) then
-  message(@MSG_ERROR, '['+@class+'::'+@method+'] Directory separator ("/" or "\") missing at the end of export path');
-endif
+// get directory separator of current platform
+@dirSeparator    = $invalid; 
+@environmentInfo = FromMem(@exportNode\(NodeInformation:).Environment);
+@osPath          = @environmentInfo\$Subset(*:.Name=='ISIS_OBJECT_SPACE').Value;
+If (Left(@osPath, 1)==@DIR_SEPARATOR_UNIX) Then
+  @dirSeparator = @DIR_SEPARATOR_UNIX;
+Else
+  @dirSeparator = @DIR_SEPARATOR_WINDOWS;
+EndIf  
+
+// add directory separator to export path if necessary
+If (Right(@exportPath, 1)!=@dirSeparator) Then
+  @exportPath += @dirSeparator;
+EndIf
 
 
 // 2. find data class for export helper (transient instance is created later)
 $local,$0: @DataGenericBinaryClass  = $search($classes of DataGenericBinary:).$id,$LogicalGUID top 1;
 @exportToolBinAttrName = 'TargetName';
-
 
 
 // 3. export binary attributes of source object to filesystem
