@@ -1,7 +1,7 @@
 ![](https://img.shields.io/badge/Papyrus-7-blue.svg)
 ![](https://img.shields.io/badge/Language-PQL-yellow.svg)
 ![](https://img.shields.io/badge/Experience->10Y-brightgreen.svg)
-![](https://img.shields.io/badge/Papyrus%20Objects->10Y-brightgreen.svg)
+![](https://img.shields.io/badge/Papyrus_Objects_Skills-%E2%98%85%E2%98%85%E2%98%85%E2%98%85%E2%98%85-success.svg)
 
 pqlhub
 ======
@@ -12,7 +12,7 @@ I have been working as international IT-consultant for ISIS Papyrus Software for
 
 
 This is a collection of PQL scripts that I created over the years and which I find useful, so I wanna share it with you.
-For those who don't know Papyrus, check out their website https://www.isis-papyrus.com
+For those who don't know Papyrus, check out their website https://www.isis-papyrus.com.
 
 The ISIS Papyrus platform integrates two scripting languages called Docdef and PQL (Papyrus Query Language) which serve different purposes. Docdef is a document definition language which is compiled by Papyrus DocEXEC formatter to create AFP documents.
 
