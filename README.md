@@ -6,7 +6,7 @@
 pqlhub
 ======
 
-This is a collection of PQL (Papyrus Query Language) scripts that I created over the years when I worked as ISIS Papyrus consultant. Its part of my personal "toolbox" that I brought to every project that I worked on in over 10 years. I think it could be interesting to other people working with Papyrus software as well, so I wanna share it with you.
+This is a collection of PQL (Papyrus Query Language) scripts that I created over the years when I worked as ISIS Papyrus consultant. It's part of my personal "toolbox" that I brought to every project that I worked on in over 10 years. I think it could be interesting to other people working with Papyrus software as well, so I wanna share it with you.
 For those of you who don't know Papyrus, check out their website https://www.isis-papyrus.com.
 
 The ISIS Papyrus platform integrates two scripting languages called Docdef and PQL (Papyrus Query Language) which serve different purposes. Docdef is a document definition language which is compiled by Papyrus DocEXEC formatter to create AFP documents.
