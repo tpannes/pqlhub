@@ -19,7 +19,4 @@ Have a look what it's there and if you find something useful or spot a bug, I wo
 
 ![](https://img.shields.io/badge/Threema-99PA4E5Z-green.svg?style=popout&logo=messenger?logoColor=green)
 
-![](https://img.shields.io/badge/Email_-pqlhub@posteo.de-informational.svg?style=popout&logo=8B89CC)
- 
-
 
