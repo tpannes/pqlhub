@@ -1,0 +1,132 @@
+$pqlHeader.Id = "OpenAPI-Import";
+$pqlHeader.Description = "
+Version: 1.0
+Author: Ralf Hilgenberg, Timo Pannes
+Description: Reads OpenAPI JSON-file and creates RESTful endpoints in Papyrus
+License:
+  The Unlicense
+  This is free and unencumbered software released into the public domain.
+  Anyone is free to copy, modify, distribute and perform the work,
+  even for commercial purposes, without asking permission.
+";
+
+
+function getPqlCode(@methodid as String,@verbName as String,@description as String, @parameters as PQLSET, @pqlcodeTemplate as String) as String;
+begin
+  if (@parameters != $invalid) then
+    @pathParameter = FromMem(@parameters)\$subset(.in like "path").name; // path parameter like /users/{id} (should only be one)
+    @queryParameters = FromMem(@parameters)\$subset(.in like "query").name,required,description,schema;
+    @pqlset = (@verbName=="get") ? "@query" : "@blobFromMem";
+    if (@queryParameters!=$invalid) then // do we have query parameters like e.g. "role" in: /users?role=admin
+      @idx = 0;
+      forEach @param in (@queryParameters)
+         @idx++;
+         // type information is stored in schema. depending on type, PQL casting functions To<X>() will be applied..
+         @type = FromMem(@param.schema)\$subset.type;
+         @defaultValue = FromMem(@param.schema)\$subset.default;
+         if (@defaultValue==$invalid) then 
+           @defaultValue = "$invalid";
+         elseIf (lower(@type)=="string") then
+           @defaultValue = '"'+@defaultValue+'"';
+         endIf        
+         select (lower(@type))
+           case "integer" : @cast = "ToInt"    ; break;
+           case "boolean" : @cast = "ToBool"   ; break;
+           case "number"  : @cast = "ToDouble" ; break; 
+           default        : @cast = ""         ; break; // strings etc. are not castted
+         endSelect
+         @queryParameters = SetFieldValue(@queryParameters,@idx,"_cast",@cast);
+         @queryParameters = SetFieldValue(@queryParameters,@idx,"_pqlset",@pqlset);
+         @queryParameters = SetFieldValue(@queryParameters,@idx,"_verb",@verbName);
+         @queryParameters = SetFieldValue(@queryParameters,@idx,"_optional",@param.required?"":"[optional] ");
+         @queryParameters = SetFieldValue(@queryParameters,@idx,"_default",@defaultValue);
+      next
+    endIf
+  else
+    @queryParameters = $invalid;   
+  endIf
+
+  @dataSet = $vector.(@methodid) as id,
+                   (Substitute(@description,'"','""')) as description,
+                   (ToMem(@pathParameter)) as section_param_path, // only one entry -> convert to PQLSet first
+                   (ToMem(@queryParameters)) as section_param_query;
+  return ApplyStringTemplateToSet(@pqlcodeTemplate,@dataSet);
+end
+
+
+@openAPIDefinition = $param1;
+@restfulCollection = $param2;
+@pqlCodeTemplate   = $param3;
+@simulation        = $param4;
+
+
+@C_RestfulService    = {8eef13d2-7c10-11e2-a35c-ade7ad618020};
+@C_RestfulObject     = {ede27b23-7c10-11e2-a35c-ade7ad618020};
+@C_RestfulObjectVerb = {1d1ecb6c-3722-91e3-035c-ade7ad618020};
+
+@node        = @restfulCollection\$reload.$node;
+@openAPI     = @openAPIDefinition.$ParseJSON(true);
+@resultSet   = CreateSet();
+@serviceURL  = FromMem(@openAPI.servers).url[1]; // #TODO: add support for aditional servers
+@serviceName = @serviceURL.$RegExpMatch('\/(\w*)\/?$')[2]; // extract "myservice" from URL like http://{papyrus_node}.{domain}:{port}/rest.oms/myservice/
+@service     = @restfulCollection\(@C_RestfulService:.$InternalName==@serviceName).$Id;
+
+// create service if required
+if (!@simulation && @service==$invalid) then
+  @service = @node.Instantiate(@C_RestfulService.$Id,@restfulCollection.$Id,@C_RestfulService.$Id).Return1;
+  @service = @service.$id,$name,$internalName;
+  @service.$name = @serviceName;
+  @service.$internalName = @serviceName;
+endIf
+
+@paths = FromMem(@openAPI.paths);
+forEach @path in (@paths.$FieldNames())
+  @endpointName = Extract(@path,"/",2);
+  @urlitem = Extract(@path,"/",3);
+  @endpointObject = @restfulCollection\(Restfulobject:.$internalname like @endpointName).*;
+  @isExistingEndpoint = @endpointObject != $invalid;
+  // create missing endpoints
+  if (!@simulation && !@isExistingEndpoint) then
+    @endpointObject = @node.Instantiate(@C_RestfulObject.$Id,@service.$Id,@C_RestfulObject.$Id).Return1;
+    @endpointObject = @endpointObject.$id,$name,$internalName;
+    @endpointObject.$name = @endpointName;
+    @endpointObject.$internalName = @endpointName;
+  endIf
+
+  @verbs = Frommem(@paths\$subset.@path);
+  forEach @verbName in (@verbs.$Fieldnames())   
+    @isExistingVerb = @isExistingEndpoint ? @endpointObject\(RestFulObjectVerb:.Verb like @verbName) != $invalid : false;
+    @verb = Frommem(@verbs\$subset.@verbName);
+    // parameters may not exist or may be empty
+    if (@verb.$FieldIndex("parameters")!=0) then
+      @parameters = @verb.parameters;
+      @parameters = @parameters like "{}" ? $invalid : FromMem(@parameters);
+      @parameternames = StringArray(@parameters\$subset.name);
+    else
+      @parameters = $invalid;
+      @parameternames = StringArray("");
+    endIf
+    @description = @verb.$FieldIndex("description")!=0 ? @verb.description : "";
+
+    @pqlCode = getPqlCode(@endpointName,@verbName.$Lower(),@description,ToMem(@parameters),@pqlCodeTemplate);
+    @resultSet = @resultSet.$AppendSet(($vector.(@endpointName) as endpoint,
+                                                (@isExistingEndpoint) as isExistingEndpoint,
+                                                (@urlitem) as urlitem,
+                                                (@verbName) as verb,(@isExistingVerb) as isExistingVerb,
+                                                (@description) as description,
+                                                (@parameternames.$Join(",")) as parameters,
+                                                (@pqlCode) as pqlcode)
+                                                 );
+    // create missing verbs
+    if (!@simulation && !@isExistingVerb) then
+      @verbObject = @node.Instantiate(@C_RestfulObjectVerb.$Id,@endPointObject.$Id,@C_RestfulObjectVerb.$Id).Return1;
+      @verbObject = @verbObject.$id,$name,$internalName,*;
+      @verbObject.$name = @verbName;
+      @verbObject.$internalName = @verbName;
+      @verbObject.Verb = @verbName.$left(1).$Upper()+@verbName.$SubStr(2);
+      @verbObject.Statement = @pqlCode;
+    endIf
+  next
+next
+
+return @resultSet;

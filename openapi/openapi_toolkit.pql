@@ -1,0 +1,26 @@
+$pqlHeader.Id = "OpenAPI-Toolkit";
+$pqlHeader.Description = "Wrapper for generic OpenAPI_Import PQL";
+
+// 1. get Restful Service Collection
+@restfulCollection = $self\(RestfulServiceCollection:).$id;
+
+// 2. get OpenAPI definition
+@openAPIDefinitionObj = $self\(datajson:).$id top 1;
+@fileHandle = @openAPIDefinitionObj.$FileOpen("TargetName","r");
+@openAPIDefinition = @fileHandle.$FileReadString(-1);
+@fileHandle.$FileClose();
+
+// 3. get PQL template for endpoint implementation
+@pqlCodeTemplateObj = $Self\(dataAsciiBinary:.$internalName=='pql_template').$id,TargetName;
+@fh = @pqlCodeTemplateObj.$FileOpen('TargetName','r');
+@pqlCodeTemplate = @fh.$FileReadString(-1);
+@fh.$FileClose();
+
+// 4. get OpenAPI data interface (here a standalone PQL object)
+@importer = $self\(PQL:.$internalName=="OpenAPI_Import").$id;
+
+// 5. set simulation flag (when set to true, no objects are created)
+@simulation = false;
+
+// 6. call OpenAPI importer
+@importer: FromMem(@importer.PqlExecute(@openAPIDefinition,@restfulCollection,@pqlCodeTemplate,@simulation).Return1);

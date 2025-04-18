@@ -1,0 +1,70 @@
+ $PqlHeader.Id = "{{id}}"; // leading blank is important!
+$PqlHeader.Description = "{{description}}";
+
+function getParamValue(@pqlset as PQLSET, @verbName as String, @paramName as String,@required as Bool, @defaultValue as Undefined) as String;
+begin
+  @value = (@verbName=="get") ? @pqlset\$Subset(.Key==@paramName).Value : @pqlset\$Subset.@paramName;
+  if (@required==false && @value==$invalid) then 
+    @value = @defaultValue;
+  endIf 
+  return (@value==$invalid) ? "" : ToString(@value);
+end
+
+@url    = $param.@url;
+@query  = $param.@query;
+@blob   = $param.@blob;
+@system = $param.@system;
+
+@blobFromMem   = FromMem(@blob);
+@systemFromMem = FromMem(@system);
+@clientAddress = @systemFromMem\$Subset(.Key=="remoteaddr").value;
+@user          = @systemFromMem\$Subset(.Key=="username").value;
+@userid        = @systemFromMem\$Subset(.Key=="user").value;
+@version       = $CurrentNodeId.BuildNumber;
+@domainName    = $CurrentNodeId.Domainname;{{#section_param_path}}
+@{{name}}  = FromMem(@url).urlItem;{{/section_param_path}}{{#section_param_query}}
+@{{name}}  = {{_cast}}(getParamValue({{_pqlset}},"{{_verb}}","{{name}}",{{required}},{{_default}})); // {{_optional}}{{description}}{{/section_param_query}}
+
+//@MSG_INFO  = "PFGM0003I";
+@MSG_WARN  = "PFGM0002W";
+//@MSG_ERROR = "PFGM0001E";
+
+//@HTTP_STATUS_OK                  = 200;
+//@HTTP_STATUS_CREATED             = 201;
+//@HTTP_STATUS_BADREQUEST          = 400;
+//@HTTP_STATUS_METHOD_NOT_ALLOWED  = 405;
+@HTTP_STATUS_INTERNALSERVERERROR = 500;
+//@HTTP_STATUS_NOT_IMPLEMENTED     = 501;
+
+
+// ### endpoint implementation starts here ###
+$Local($ignoreError): 
+begin
+  @simulateError = Second(Now())%2==0;
+  //@env_vars = FromMem($currentNodeID\NodeInformationObject.Environment); // list of environment variables
+  @result = $vector.(@version) as version,
+                    (@domainName) as domain,
+                    (@user) as user,
+                    (@userid) as userid,
+                    (@clientAddress) as clientaddress,
+                    ($currentNodeID\NodeInformationObject.Environment) as env_vars,
+                    (@system) as system_vars; 
+  @simulateError ? ToObjRef("42.42.42.42").$Id : true; // make script return error every other second
+end
+
+
+select ($error.errorMessageID)
+//case "PPQL2098E": clearError(); break; //Handle specific error(s)
+  case $invalid:  // no error
+    return @result;
+    break;
+  default: 
+    @type = Right($error.ErrorMessageID, 1);
+    if (@type like {'E','F'}) then
+      Message(@MSG_WARN, $pqlHeader.id + " failed because: " + $error.ErrorMessageID+" "+$error.ErrorMessage+" "+$error.ErrorSource);
+      return $Vector.
+        ("error") as __action, // required
+        (@HTTP_STATUS_INTERNALSERVERERROR)  as ErrorHttpStatus,
+        ($error.ErrorMessage) as ErrorMessage;
+    endIf
+endSelect

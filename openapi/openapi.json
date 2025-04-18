@@ -1,0 +1,1121 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Papyrus DocumentPool - OpenAPI 3.0",
+    "description": "Weiterführende links:\n- [IT-Wiki: OMS DocumentPool](https://barmer-wiki.prod.d001.loc/pages/viewpage.action?pageId=1285096274)\n- [IT-Wiki: OMS Betrieb & Operations](https://barmer-wiki.prod.d001.loc/display/itwiki/OMS+-+Output+Management+System)\n- [Swagger Editor](/swagger_editor/index.html)",
+    "version": "2023.10.30"
+  },
+  "servers": [
+    {
+      "url": "http://{papyrus_node}.{domain}:{port}/rest.oms/svcdocumentpool/",
+      "variables": {
+        "papyrus_node": {
+          "enum": [
+            "omsta",
+            "omstb",
+            "omspa",
+            "omspneu"
+          ],
+          "default": "omsta",
+          "description": "Servername"
+        },
+        "domain": {
+          "enum": [
+            "apps-t.d001.loc",
+            "apps-p.d001.loc"
+          ],
+          "default": "apps-t.d001.loc"
+        },
+        "port": {
+          "enum": [
+            "9280",
+            "9281"
+          ],
+          "default": "9281"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Dokumente",
+      "description": "Funktionen für die Abfrage und Stornierung von Dokumenten im DocumentPool",
+      "externalDocs": {
+        "description": "DocumentPool Metadaten-Struktur (IT-Wiki)",
+        "url": "https://barmer-wiki.prod.d001.loc/x/HASxQg"
+      }
+    },
+    {
+      "name": "Fachliche Freigabe",
+      "description": "Funktionen für die Aussteuerung und Freigabe von Dokumenten",
+      "externalDocs": {
+        "description": "Mehr Informationen (IT-Wiki)",
+        "url": "https://barmer-wiki.prod.d001.loc/x/YAaZT"
+      }
+    },
+    {
+      "name": "Prozess-Status",
+      "description": "Abfragen zum aktuellen Status lang laufender Prozesse im DocumentPool",
+      "externalDocs": {
+        "description": "Mehr Informationen (IT-Wiki)",
+        "url": "https://barmer-wiki.prod.d001.loc/pages/viewpage.action?pageId=1285096274"
+      }
+    },
+    {
+      "name": "Test",
+      "description": "Einfaches API ohne Parameter für _Smoketests_."
+    },
+    {
+      "name": "Bündelung",
+      "description": "Arbeit mit Bündel-Jobs."
+    }
+  ],
+  "paths": {
+    "/confirm_definitions": {
+      "get": {
+        "tags": [
+          "Fachliche Freigabe"
+        ],
+        "summary": "Gibt alle aktuell vorhandenen Freigabe-Definitionen zurück",
+        "description": "Multiple status values can be provided with comma separated strings",
+        "operationId": "getConfirmDefinitions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Verarbeitung erfolgreich",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConfirmDefinition"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Fehler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Fachliche Freigabe"
+        ],
+        "summary": "Erstellt eine neue Freigabe-Definition",
+        "description": "",
+        "operationId": "createFreigabe",
+        "requestBody": {
+          "description": "Magazine to add to the store",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewConfirmDefinition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verarbeitung erfolgreich",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmDefinition"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Invalid input"
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/confirm_definitions/{id}": {
+      "get": {
+        "tags": [
+          "Fachliche Freigabe"
+        ],
+        "summary": "Returniert angegebene Freigabe-Definition",
+        "description": "",
+        "operationId": "getFreigabeById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Freigabe-ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verarbeitung erfolgreich",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmDefinition"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Fehler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Fachliche Freigabe"
+        ],
+        "summary": "Modifiziert eine bestehende Freigabe-Definition",
+        "description": "",
+        "operationId": "updateFreigabeById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Freigabe-ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Verarbeitung erfolgreich",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmDefinition"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige ID"
+          },
+          "404": {
+            "description": "Freigabe nicht gefunden"
+          },
+          "405": {
+            "description": "Ungültige Daten"
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Fachliche Freigabe"
+        ],
+        "summary": "Lösche die angegebene Freigabe",
+        "description": "",
+        "operationId": "deleteFreigabeById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Freigabe-ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verarbeitung erfolgreich",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmDefinition"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Fehler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/confirm_permit": {
+      "post": {
+        "tags": [
+          "Fachliche Freigabe"
+        ],
+        "summary": "Gibt ausgesteuerte Dokumente frei (sie werden der Produktion zugeführt)",
+        "description": "Multiple status values can be provided with comma separated strings",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "description": "User (permitting)",
+            "required": true,
+            "explode": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "output_channel",
+            "in": "query",
+            "description": "Versandweg (CTDx)",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CTDD",
+                "CTDZ",
+                "CTDO",
+                "CTD?",
+                "CTD*"
+              ]
+            }
+          },
+          {
+            "name": "spool",
+            "in": "query",
+            "description": "Spool",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "default": "hugo"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximale Anzahl (0=alle)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verarbeitung erfolgreich (STPs gestartet)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConfirmActionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STP nicht verfügbar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Fehler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/confirm_cancel": {
+      "post": {
+        "tags": [
+          "Fachliche Freigabe"
+        ],
+        "summary": "Bricht ausgesteuerte Dokumente ab (sie werden nicht produziert)",
+        "description": "Multiple status values can be provided with comma separated strings",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "description": "User (cancelling)",
+            "required": true,
+            "explode": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "output_channel",
+            "in": "query",
+            "description": "Versandweg (CTDx)",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CTDD",
+                "CTDZ",
+                "CTDO",
+                "CTD?",
+                "CTD*"
+              ]
+            }
+          },
+          {
+            "name": "spool",
+            "in": "query",
+            "description": "Spool",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verarbeitung erfolgreich (STPs gestartet)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConfirmActionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "STP nicht verfügbar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Fehler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/documents": {
+      "get": {
+        "tags": [
+          "Dokumente"
+        ],
+        "summary": "Liste der Dokumente",
+        "description": "Ermittlung der Liste der erstellten Dokumente",
+        "operationId": "getSpools",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "description": "User-ID des auslösenden Benutzers (mit Wildcards)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Zeitraum von",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Zeitraum bis",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "doc",
+            "in": "query",
+            "description": "Nummer des Dokuments (mit Wildcards)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "*"
+            }
+          },
+          {
+            "name": "docstatus",
+            "in": "query",
+            "description": "0=alle,1=ok,2=fehler",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                0,
+                1,
+                2
+              ],
+              "default": 0
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Sortierreihenfolge (neuste am Anfang=desc/älteste=asc)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximale Anzahl Resultate",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmDefinition"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Spool-ID"
+          },
+          "404": {
+            "description": "Spool nicht gefunden"
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/document_preview": {
+      "post": {
+        "tags": [
+          "Dokumente"
+        ],
+        "summary": "Liefert einen Link zum PDF der angegebenen Dokumenten, stoesst ggf. eine Konvertierung an.",
+        "description": "Die Parameter koennen nicht im Header uebergeben werden, sondern in einem _Formular_. Bzgl. der Implementierung siehe [IT-Wiki: Besonderheit Dokument-PDF Download](https://barmer-wiki.prod.d001.loc/display/itwiki/DocumentPool+%7C+REST-APIs)",
+        "operationId": "getDocumentPreview",
+        "parameters": [
+          {
+            "name": "condition",
+            "in": "query",
+            "description": "PQL-Expression",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "maximale Anzahl Dokumente",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "nothing found or (single) document not accesible"
+          }
+        }
+      }
+    },
+    "/document/{id}": {
+      "get": {
+        "tags": [
+          "Dokumente"
+        ],
+        "summary": "Returniert Daten zum angegebenen Dokument sowie einen Link auf das AFP bzw. PDF",
+        "description": "",
+        "operationId": "getDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Object-ID of document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "details",
+            "in": "query",
+            "description": "Detail",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dokument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Object-ID"
+          },
+          "404": {
+            "description": "Dokument mit gegebener Object-ID existiert nicht",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Dokumente"
+        ],
+        "summary": "storniert ein Dokument (nur möglich bei Zentraldruck)",
+        "description": "",
+        "operationId": "cancelDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Object-ID of document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "description": "user (cancelling)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dokument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Object-ID"
+          },
+          "404": {
+            "description": "Dokument mit gegebener Object-ID existiert nicht"
+          },
+          "409": {
+            "description": "Fehler - Dokument kann nicht storniert werden (Conflict - The request could not be completed due to a conflict with the current state of the resource.)"
+          },
+          "503": {
+            "description": "STP nicht verfügbar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/bundle_definitions": {
+      "get": {
+        "tags": [
+          "Bündelung"
+        ],
+        "summary": "Returniert alle zeitgesteuerten Bündel-Jobs",
+        "description": "",
+        "parameters": [
+          {
+            "name": "details",
+            "in": "query",
+            "description": "Details",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "output_channel",
+            "in": "query",
+            "description": "Versandweg (CTDx)",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "*",
+                "CTDC",
+                "CTDD",
+                "CTDC"
+              ],
+              "default": "*"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "404": {
+            "description": "keine aktiven PED Workflows gefunden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnyValue"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/status/{component}": {
+      "get": {
+        "tags": [
+          "Prozess-Status"
+        ],
+        "summary": "Liefert den Status aller Komponenten wie Bündel-Prozesse oder STPs im Document-Pool",
+        "description": "",
+        "parameters": [
+          {
+            "name": "component",
+            "in": "path",
+            "description": "Name der Komponente (SToredProcedures/Bündeln/Workflows)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "stp",
+                "bundling",
+                "wf"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "details",
+            "in": "query",
+            "description": "Details",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnyValue"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    },
+    "/test": {
+      "get": {
+        "tags": [
+          "Test"
+        ],
+        "summary": "Test-Query",
+        "description": "Return user, session and role information",
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PapyrusBasicAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnyValue": {},
+      "Dokument": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "Spool": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "BundleDefinition": {
+        "type": "object",
+        "required": [
+          "id",
+          "description",
+          "next_run_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "next_run_at": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfirmDefinition": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NewConfirmDefinition"
+          },
+          {
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "created": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "NewConfirmDefinition": {
+        "type": "object",
+        "required": [
+          "is_active",
+          "document_id",
+          "user_id",
+          "output_channel",
+          "contact_address"
+        ],
+        "properties": {
+          "is_active": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string",
+            "description": "Dokument-Nummern (inkl. Wildcards ? und *)"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "User (inkl. Wildcards ? und *)"
+          },
+          "output_channel": {
+            "type": "string",
+            "description": "Ausgabekanal",
+            "enum": [
+              "CTDD",
+              "CTDZ",
+              "CTDO",
+              "CTD*"
+            ]
+          },
+          "contact_address": {
+            "type": "string",
+            "description": "Mail-Adresse des beauftragenden Benutzers"
+          }
+        }
+      },
+      "ConfirmActionResponse": {
+        "type": "object",
+        "required": [
+          "return_code",
+          "return_message"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error_code",
+          "error_message"
+        ]
+      },
+      "TestResponse": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "user": {
+              "type": "string"
+            },
+            "session": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "node": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PreviewResponse": {
+        "description": "todo",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "PDF": {
+              "type": "string"
+            },
+            "searchresult": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "oc_rule": {
+                    "type": "string"
+                  },
+                  "dokumentnummer": {
+                    "type": "string"
+                  },
+                  "IsisPageCount": {
+                    "type": "integer"
+                  },
+                  "Ordnungsbegriff": {
+                    "type": "string"
+                  },
+                  "spoolid": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "requestBodies": {
+      "Freigabe": {
+        "description": "Freigabe-Definition",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ConfirmDefinition"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "PapyrusBasicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    }
+  }
+}

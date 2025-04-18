@@ -1,0 +1,21 @@
+$PqlHeader.Id = "PqlScript::DeleteObjectCommandGeneration";
+$PqlHeader.Description = "Generates kernel commands to delete a given list of OIDs via kernel function (T) Tools-> (H) DeleteObject.
+Take care that the maxinum length of a commmand line string is limited to 8191 bytes under Windows.
+So for a large number of objects, the deletion must be done in chunks. With a limit of 8191 bytes and a command 
+string of about 144 bytes, you can delete about 56 objects in one run (or a few more if you have short object IDs)";
+
+@resourcesToDelete = $Param1; // array of object IDs that shall be deleted
+
+@context2 = ToMem(CreateSet(@resourcesToDelete.$Id).$Id as "OID_TO_DELETE");
+@context1 = $Vector.(@context2) as "Section";
+
+@kernelCommandsTemplate = 
+"{{#Section}}T
+H
+{{OID_TO_DELETE}}
+UNCONDITIONAL
+YES
+{{/Section}}";
+
+@kernelCommands = ApplyStringTemplateToSet(@kernelCommandsTemplate, @context1);
+Return @kernelCommands;
