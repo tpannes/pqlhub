@@ -1,5 +1,0 @@
-Return 
-  $Self.FilesystemImportSourceDirectory!=$Invalid && 
-  $Self.FilesystemImportSourceDirectory!=""       &&
-  $Self.FilesystemImportTargetFolder!=$Invalid    &&
-  $Self.$EngineStatus==2; // Ready

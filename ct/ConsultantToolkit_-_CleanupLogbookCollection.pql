@@ -1,6 +1,0 @@
-@self = $self.$id,$node,*;
-@verbodeLevel = @self.VerboseLevel; 
-
-@self.start("CleanupLogbookCollectionGeneric", @verbodeLevel);
- 
-return 0;

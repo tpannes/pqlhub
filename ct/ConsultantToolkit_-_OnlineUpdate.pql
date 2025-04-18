@@ -1,9 +1,0 @@
-$PqlHeader.Id = 'OnlineUpdate';
-$PqlHeader.Description = '';
-
-@self      = $Self.$Id,$ClassGUID,UpdateURL;
-@class     = @self.$ClassGUID;
-@updateURL = @self.UpdateURL;
-
-@rc = FromMem(@class.OnlineUpdateIntern(@updateURL).Return1);
-Return @rc;

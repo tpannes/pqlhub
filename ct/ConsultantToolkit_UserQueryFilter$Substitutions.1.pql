@@ -1,3 +1,0 @@
-@sessionClass = {66e5de84-8d3d-33ed-99ea-c1fd25363b0e};
-@ATTR_NAME_PROGRAM_FILTER = "AvailableFor";
-@programFilter = createSet(value(@sessionClass\$attrDef(.$attrnameintern==@ATTR_NAME_PROGRAM_FILTER).$substitutions));
