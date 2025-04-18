@@ -1,0 +1,171 @@
+/* v3.0 */
+$PqlHeader.Id = "ConsultantToolkit::PqlsetToJsonGeneric";
+$PqlHeader.Description = "
+Note: This script requires kernel version v7.12 or greater (e.g. for function $columnNames)
+
+Synapsis:
+  The script converts a given PqlSet into a JSON string
+Parameter:
+  $param1: PqlSet to be converted as memory value
+  $param2: [optional] PqlSet name. Will be used in JSON as name for the objects array
+  $param3: [optional] Verbose level (0: no output)
+  $param4: Used internally to keep track of stack level in recursive calls (for debugging)
+  $param5: Used internally to keep track of navigation through nested PQL sets (for debugging)
+Return:
+  Generated JSON data
+History:
+  2012/08/xx initial version
+  2014/09/xx various bugfixes 
+  2014/10/xx complete rewrite
+";
+
+@pqlSet       = fromMem($param1);
+@pqlSetName   = $param2;
+@verboseLevel = $param3;
+@stackSize    = $param4;
+@navPath      = $param5;
+@self         = $self.$id,*;
+@json         = ''; // return value
+
+@MSG_INFO     = 'PFGM0003I'; 
+@MSG_TRACE    = 'PFGM5901T'; 
+@CHAR_BKSP    = char(8);  // escape via \b
+@CHAR_LF      = char(10); // escape via \n
+@CHAR_CR      = char(13); // escape via \r
+@CHAR_TABH    = char(9);  // escape via \t
+@CHAR_TABV    = char(11); // escape via \v
+
+@ESCPAPE_SEQUENCES = Array(
+{'\','\\'}, // this has to come first to avoid multiple substitutions..
+{'"','\"'},
+{'/','\/'},
+{@CHAR_BKSP, '\b'},
+{@CHAR_LF,   '\n'},
+{@CHAR_CR,   '\r'},
+{@CHAR_TABH, '\t'},
+{@CHAR_TABV, '\v'}
+);
+
+If (@verboseLevel==$invalid) Then @verboseLevel = 0; EndIf
+If (@stackSize==$invalid)    Then @stackSize    = 0; EndIf
+
+
+@rowCount = Count(@pqlSet);
+If (@navPath==$invalid) Then  
+  @navPath = '';
+  If (@verboseLevel>1) Then
+    Message(@MSG_INFO, $PqlHeader.Id);
+    Message(@MSG_INFO, ' >> processing input PqlSet (size: '+@rowCount+')');
+  EndIf
+Else
+  If (@verboseLevel>1) Then
+    Message(@MSG_INFO, ' >> processing nested PqlSet @ '+ @navPath+ '  (rowCount: '+@rowCount+', stackSize: '+@stackSize+')');
+  EndIf
+  @navPath += ' > '; 
+EndIf
+
+
+// quick exit
+If (Count(@pqlSet)==0 AND @pqlSet==$Invalid) then Return ""; EndIf // @pqlSet==$Invalid returns true if value in first row / first column is invalid
+
+If (@pqlSetName==$invalid OR @pqlSetName=="") Then
+  @json += '['; 
+Else
+  @json += '{ "'+@pqlSetName+'": [';
+EndIf
+
+// Note: we habe to work with WHILE loops here since FOREACH ignores invalid array entries, e.g. for array { $invalid, 0 } it would only loop once
+
+@rowIdx = 1;
+While (@rowIdx <= @rowCount) // row loop
+  @row = @pqlSet[@rowIdx];
+  @json += @CHAR_LF+'{';
+ 
+  @columns     = @pqlSet.$FieldNames();
+  @columnCount = Count(@columns);
+  @columnIdx   = 1;
+  While (@columnIdx <= @columnCount) // column loop
+    @column = @columns[@columnIdx];
+    
+    Message(@MSG_TRACE, ' >> processing row '+@rowIdx+', column "'+@column+'"');
+    @columnValue          = @row\$Subset.@column; // @obj.@column does not work!
+    @columnValueIsArray   = IsArray(@columnValue);
+    @columnValueProcessed = '';
+    @columnValueCount     = 1;
+    If (@columnValueIsArray) Then
+      @columnValueProcessed = '[';
+      @columnValue = Value(@columnValue);
+      @columnValueCount = Count(@columnValue); 
+    EndIf
+
+    @columnValueIdx = 1;
+    While (@columnValueIdx <= @columnValueCount) // array values loop     
+      If (@columnValueIsArray) Then
+        @value = @columnValue[@columnValueIdx];
+      Else
+        @value = @columnValue;
+      EndIf
+      Message(@MSG_TRACE, '    processing value at index '+@columnValueIdx+': '+@value);
+      If (IsInvalid(@value)) Then
+        @columnValueProcessed += 'null';
+      ElseIf (IsBool(@value) OR (IsNumeric(@value) AND @value!="")) Then // IsNumeric() returns true for empty string attribute
+        @columnValueProcessed += @value;
+      ElseIf (IsMem(@value)) Then
+        If (toString(@value) like "PQL*") Then       
+          @set = FromMem(@value);
+          If (Count(@set)) Then
+            @stackSize++;
+            @currentNavPath = @navPath + '['+ ToString(@rowIdx) + ',' + ToString(@columnIdx)+ ']';
+            @columnValueProcessed += fromMem(@self.PqlsetToJsonGeneric(toMem(@set),$invalid,@verboseLevel,@stackSize,@currentNavPath).Return1); // recursive call
+            If (@columnValueProcessed=="") Then
+              @columnValueProcessed = 'null';
+            EndIf
+            @stackSize--;
+          Else
+            @columnValueProcessed += '"EMPTY_PQLSET"'; // TODO: check if there is a better way to handle empty sets
+          EndIf
+        Else
+          @columnValueProcessed += '"MEMORY_BUFFER"';
+        EndIf
+      Else // -> string
+        // escape special characters in column values        
+        @value = ToString(@value);
+        @tableIdx = 1;
+        While (@tableIdx <= Count(@ESCPAPE_SEQUENCES))
+          @escapeChar = @ESCPAPE_SEQUENCES[@tableIdx][1];
+          @escapeSequence = @ESCPAPE_SEQUENCES[@tableIdx][2];
+          @value = Substitute(@value , @escapeChar, @escapeSequence);
+          @tableIdx++;
+        Next   
+        @columnValueProcessed += '"' + @value + '"'; 
+      Endif
+      If (@columnValueIsArray && @columnValueIdx < @columnValueCount) Then
+        @columnValueProcessed += ','+@CHAR_LF;
+      EndIf
+      @columnValueIdx++;
+    Next // array values loop
+    
+    If (@columnValueIsArray) Then
+      @columnValueProcessed += ']';
+    EndIf    
+    @prop = '"'+@column+'": '+ @columnValueProcessed + ',';
+    @json += @CHAR_LF + @prop;
+    @columnIdx++;
+    
+  Next // column loop
+  
+  @json = Left(@json, Length(@json)-1); // cut off comma after last property
+  @json += @CHAR_LF+'},';
+  @rowIdx++;
+  
+Next // row loop
+
+@json = Left(@json, Length(@json)-1)+''; // cut off comma after last row
+
+If (@pqlSetName==$invalid OR @pqlSetName=="") Then
+  @json += @CHAR_LF+']';
+Else
+  @json += @CHAR_LF+']}';
+EndIf  
+
+Return @json;

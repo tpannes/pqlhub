@@ -1,0 +1,54 @@
+/* v1.0
+ * PQL script "GetBinAttrSizeGeneric" created 2012 by TimoP
+ * 
+ * Description:  
+ *   The script checks the size of a binary attribute of an arbitrary object.
+ *   It can be used e.g. to find out how big an AFP would be after exporting it to the filesystem.
+ * 
+ * Input parameters:
+ *   Param1:  source object OID
+ *   Param2:  binary attribute name
+ *   Param3:  (optional) unit [0: bytes, 1: KB, 2: MB]
+ *
+ * Return: 
+ *   Size of binary attribute
+ * 
+ */
+
+@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+//@MSG_INFO    = 'PFGM0003I';
+
+@self   = $self.$id,$displayname,$node,$ClassGUID,$Inheritance,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'GetBinAttrSizeGeneric';
+
+@dataObject  = toObjRef($param1);
+@dataObject  = @dataObject.$id,*;
+@binAttrName = toString($param2);
+@unit        = toInt($param3);
+
+// check input parameters
+if (isInvalid(@dataObject.$id) OR !IsAccessible(@dataObject)) then message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid data object specified via param1'); endif;
+if (@binAttrName=="") then message(@MSG_ERROR, '['+@class+'::'+@method+'] Binary attribute name (param2) is empty'); endif;
+@isBinAttrDefined = count(@dataObject\$Inheritance\$AttrDef(.$AttrNameIntern==@binAttrName))>0;
+if (!@isBinAttrDefined) then message(@MSG_ERROR, '['+@class+'::'+@method+'] Binary attribute "'+@binAttrName+'" not defined on data object '+@dataObject); endif;
+
+// get file size
+@fileHandle = FileOpen(@dataObject, @binAttrName, 'r');
+FileSeek(@fileHandle, 0, 2);
+@fileSize = FileTell(@fileHandle);
+FileClose(@fileHandle);
+
+@divisor = 1;
+if (@unit>1) then
+  select (@unit)
+    case 2: @divisor = 1024;      break;
+    case 3: @divisor = 1024*1024; break;
+  endselect
+endif
+
+
+return @fileSize / @divisor;
+ 
+

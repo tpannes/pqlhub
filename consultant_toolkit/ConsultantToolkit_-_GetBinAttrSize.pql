@@ -1,0 +1,13 @@
+
+@self  = $self.$id,$node,$ClassGuid,*;
+@session = $CurrentSessionId;
+@showResultInDesktop = @self.ShowResultInNewWindow;
+
+@self.GetBinAttrSizeIntern();
+
+if (@showResultInDesktop) then
+  @session.call("ConnectToDesktop", @self.$id, @session.$id, @self.$id);
+  @self.start("DesktopViewResult", "yes", "yes");
+endif
+
+return 0;

@@ -1,0 +1,19 @@
+@self = $self.$id,$node,*;
+@node = @self.$node;
+
+@exportObjects    = value(@self.BinAttrFunctionsSourceObjects);
+@binAttrSelection = value(@self.BinAttrFunctionsAttrSelection);
+@exportPath       = @self.BinAttrExportPath;
+@verbodeLevel     = @self.VerboseLevel; 
+@localExport      = @self.BinAttrExportLocalOnly;
+
+@exportNode = @node;
+if (@localExport) then @exportNode = $CurrentNodeId; endif
+
+forEach @obj in (@exportObjects)
+  if (isAccessible(@obj)) then
+    @exportNode: @self.start("BinaryExportGeneric", @obj, @binAttrSelection, @exportPath, @exportNode, @verbodeLevel);
+  endif
+next
+
+return 0;

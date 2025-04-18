@@ -1,0 +1,91 @@
+/* v1.0
+ * PQL script "GetActiveUsersGeneric" created 2012 by TimoP
+ * 
+ * Description:  
+ *   The script copies attribute values between two instances or templates. This is meant to be a convenience function 
+ *   to quickly populate attributes of a new object based on an existing, already configured one.
+ * 
+ * Input parameters:
+ *   Param1:  source object OID
+ *   Param2:  target object OID
+ *   Param3:  verbose level (0..9)
+ *   Param4:  flag defining whether system attributes $name and $internalname should be omitted (optional, default: no)
+ *   Param5:  flag defining whether binary attributes should be omitted (optional, default: no)
+ *
+ * Return: 
+ *   Number of changed attributes on target object
+ * 
+ */
+
+//@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
+
+
+
+@self   = $self.$id,$displayname,$node,$classGUID,$inheritance,*;
+@class  = @self\$ClassGUID.$internalName;
+@method = 'GetActiveUsersGeneric';
+
+
+@sessionFilter = $param1;
+@verboseLevel  = $param2;
+
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Searching for active sessions that match selected programs...');
+endif
+
+// create set of all sessions where the connection string in attribute "Connection" or "MultipleConnections" match at least 
+// one of the selected program names, e.g. "PDTXX" for Papyrus Desktop
+@allSessions = CreateSet({});
+forEach @program in (@sessionFilter)
+  @filter = '*' + @program;
+  $0: @sessions = $search($instances of Session:.Connection like @filter || .MultipleConnections like @filter).$id as SessionID,$displayname as Session,Connection,MultipleConnections,\User.$name as User,\User.Username as Username;
+  if (@verboseLevel>2) then
+    message(@MSG_INFO, ' >> '+count(@sessions)+' sessions found for program '+@program);
+  endif
+  @allSessions = union(@allSessions, @sessions);
+next
+
+if (@verboseLevel>1) then
+  message(@MSG_INFO, ' >> '+count(@allSessions)+' sessions found after initial search. Starting verification...');
+endif  
+
+// run kernel method "CheckConnectionUsed" on each session to verify that session is really in use
+// (sometimes, the connection entry is not cleared, e.g. after a crash)
+@sessionsUsed = createSet({});
+@users = createSet({});
+forEach @session in (@allSessions)
+  $0: @isSessionUsed = (@session.CheckConnectionUsed().Return1);
+  if (@isSessionUsed) then
+    if (@verboseLevel>3) then
+      message(@MSG_INFO, '   >> DEBUG: session "'+@session.Session+'" ('+@session+') is in use');
+    endif
+    @sessionsUsed = union(@sessionsUsed, @session);
+    @users = union(@session\User.$id, @users);
+  else
+    if (@verboseLevel>3) then
+      message(@MSG_INFO, '   >> DEBUG: session "'+@session.Session+'" ('+@session+') is NOT in use');
+    endif   
+  endif
+next
+
+if (@verboseLevel>1) then
+  message(@MSG_INFO, ' >> '+count(@sessionsUsed)+' sessions reported as active after verification');
+endif
+
+if (count(@users)>0) then
+  // load user attributes as we only have the OID so far
+  @users = @users\$reload(*:).$id as UserID,$name as User,UserName,$created as CreationDate,LastActiveSession.$name as LastActiveSession,MostRecentLogon,MostRecentPasswordChange;
+endif  
+
+if (@verboseLevel>0) then
+  message(@MSG_INFO, ' >> '+count(@users)+' users found for active sessions:');
+  forEach @user in (@users)
+    message(@MSG_INFO, '    '+@user.User + ' ['+@user.Username+']');
+  next
+endif
+
+
+return @users;
+ 

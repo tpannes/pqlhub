@@ -1,0 +1,13 @@
+@self    = $self.$id,$node,*;
+@session = $CurrentSessionId;
+
+@userQueryFilter = value(@self.UserQueryFilter);
+@verbodeLevel    = @self.VerboseLevel; 
+
+@self.GetActiveUsersGeneric(@userQueryFilter, @verbodeLevel);  
+
+@session.call("ConnectToDesktop", @self.$id, @session.$id, @self.$id);
+@self.start("DesktopViewResult", "yes", "yes");
+
+return 0;
+

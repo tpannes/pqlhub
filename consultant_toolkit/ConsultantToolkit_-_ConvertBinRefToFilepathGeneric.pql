@@ -1,0 +1,84 @@
+/* v1.0
+ * PQL script "ConvertBinRefToFile" created 2012 by TimoP
+ * 
+ * Description:  
+ *   The script calculates the content string of a binary attribute out of a given path to a *.bi4 file
+ *   The input path can be either a full path like "D:\objects_dc\binaries\00000000\00a95bdd\000001\11.bi4" or a relative one
+ *   as long as it contains the necessary subfolders underneath "binaries" folder. Both windows and unix paths are supported. 
+ *   Example: 
+ *     A path like "/00000025/0146ca2b/0002d0/8d.bi4" would be translated into "$$Binary$$ 25.25.146ca2b.2d08d"
+ * 
+ * Input: 
+ *   param1: binary attribute value like "$$Binary$$ 25.25.146ca2b.2d08d"
+ *   param2: flag to define whether absolute or relative path names are generated for output filenames
+ *   param3: verbose level (optional)
+ *
+ * Return: 
+ *   path to bi4 file
+ *
+ */
+
+@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
+
+
+@self   = $self.$id,$displayname,$node,$ClassGUID,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'ConvertBinRefToFile';
+
+
+@binAttrValue     = $param1;
+@showAbsolutePath = $param2; 
+@verboseLevel     = toInt($param3);
+
+
+// constants
+@BINARIES_FOLDER_NAME  = 'binaries';
+@BINATTR_VALUE_PREFIX  = '$$Binary$$ ';
+@FILE_EXTENSION = '.bi4';
+@DIR_SEPARATOR_WINDOWS = '\';
+@DIR_SEPARATOR_UNIX    = '/';
+
+// check input parameters
+if (isInvalid(@binAttrValue)) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Binary attribute value (param1) is empty'); 
+  return "";
+endif
+
+if (@verboseLevel>3) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Binary attribute value retrieved via param1: "'+@binAttrValue+'"'); 
+endif
+
+
+// calculation
+@binAttrId  = SubStr(@binAttrValue, length(@BINATTR_VALUE_PREFIX)+1);
+@pathComponents = Split(toString(@binAttrId), '.');
+
+@dir1 = Right(@pathComponents[1],8,'0');
+@dir2 = Right(@pathComponents[3],8,'0');
+@dir3 = Right(SubStr(@pathComponents[4],1, length(@pathComponents[4])-2),6,'0');
+@file = Right(@pathComponents[4],2) + @FILE_EXTENSION;
+
+@ownerNode = toObjRef(@pathComponents[2] + '.' + @pathComponents[2] + '.0.0');
+@nodeInformation = @ownerNode\(NodeInformation:).$id,*;
+@env = fromMem(@nodeInformation.Environment);
+@osPath = @env\$subset(*:.Name=='ISIS_OBJECT_SPACE').Value;
+
+if (left(@osPath, 1)==@DIR_SEPARATOR_UNIX) then
+  @dirSeparator = @DIR_SEPARATOR_UNIX;
+else
+  @dirSeparator = @DIR_SEPARATOR_WINDOWS;
+endif  
+
+@bi4path = @dir1 + @dirSeparator + @dir2 + @dirSeparator + @dir3 + @dirSeparator + @file;
+
+if (@showAbsolutePath) then
+  @bi4path = @osPath + @dirSeparator + @BINARIES_FOLDER_NAME + @dirSeparator + @bi4path;
+endif
+
+if (@verboseLevel>3) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Path to bi4 file: "'+@bi4path+'"'); 
+endif
+
+return @bi4path;

@@ -1,0 +1,15 @@
+@MSG_INFO = 'PFGM0003I';
+
+@self     = $self.$id,$displayname,$node,$classGUID,$background,*;
+@class    = @self\$classGUID.$internalName;
+@method   = 'SetBackgroundColor';
+
+@verboseLevel = @self.VerboseLevel;
+@bgColor      = @self.BackgroundColor;
+
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Setting background color to '+@bgColor); 
+endif
+$Local($tr):@self.$background = @bgColor;
+
+return @bgColor;

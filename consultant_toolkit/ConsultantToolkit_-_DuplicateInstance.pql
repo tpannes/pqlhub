@@ -1,0 +1,34 @@
+@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
+
+@OBJTYPE_CLASS = 1;
+
+@self = $self.$id,$node,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'DuplicateInstance';
+
+@sourceObj    = @self.ObjectDuplicationSourceOid;
+@container    = @self.ObjectDuplicationContainerOid;
+@verbodeLevel = @self.VerboseLevel; 
+@targetNode   = @container.$node;
+
+if (isInvalid(@sourceObj) OR isInvalid(@container)) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid source or container OID'); 
+endif
+
+if (@verbodeLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Creating copy of "'+@sourceObj.$displayname+'" ('+@sourceObj.$id+') in folder "'+@container.$displayname+'" ('+@container.$id+')...');
+endif  
+@originator = @sourceObj\$classGUID(*:).$id,$name,$objType;
+if (@originator.$objType==@OBJTYPE_CLASS) then
+  @method = "Instantiate"; // if instance is derived from a class
+else
+  @method = "InstantiateTemplate"; // if instance is derived from a template
+endif
+
+@newInstance = @targetNode.call(@method, @originator.$id, @container, @originator.$id).Return1;
+@self.CopyAttributesGeneric(@sourceObj, @newInstance, @verbodeLevel);  
+
+return 0;
+

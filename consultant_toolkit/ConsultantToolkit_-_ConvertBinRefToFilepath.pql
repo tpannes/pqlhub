@@ -1,0 +1,14 @@
+@self  = $self.$id,$node,$ClassGuid,*;
+
+@inputValues    = value(@self.BinRefToFilepathInputValues);
+@showAbsolutePath     = @self.BinRefToFilepathShowAbsolutePath;
+@verboseLevel         = @self.VerboseLevel;
+
+@result = array();
+forEach @i in (@inputValues)
+  @o = fromMem(@self.ConvertBinRefToFilepathGeneric(@i, @showAbsolutePath, @verboseLevel).Return1);
+  @result = insertValue(@result, @o);
+next
+@self.BinRefConversionOutputValues = @result;
+
+return createSet(@result);

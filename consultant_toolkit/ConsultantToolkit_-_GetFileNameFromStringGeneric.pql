@@ -1,0 +1,47 @@
+/* v1.1
+ * PQL script "GetFileNameFromStringGeneric" created 2012 by TimoP
+ * 
+ * Description:  
+ *   The script creates a valid filename for a given input string by exchanging all problematic characters by an underscore.
+ *   
+ * 
+ * Usage: 
+ *   Param1: input string to be converted into a valid filename
+ *   Param2: replacement character (optional, default: '_')
+ *   Param3: verbose level (optional)
+ * 
+ * Return:
+ *   Valid filename based on input string where all forbidden characters are exchanged by underscores
+ *  
+ * 
+ */
+
+
+//@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
+
+@self   = $self.$id,$displayname,$node,$ClassGUID,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'GetFileNameFromStringGeneric';
+
+
+@inputString     = $param1;
+@replacementChar = $param2;
+@verboseLevel    = $param3;
+
+@FORBIDDEN_CHARACTERRS = array('?','/','\','%','<','>',':','"','|','*');
+if (@replacementChar==$invalid OR InArray(@FORBIDDEN_CHARACTERRS, @replacementChar)) then
+  @replacementChar = '_';
+endif
+ 
+@fileName = @inputString;
+ForEach @char in (@FORBIDDEN_CHARACTERRS)
+  @fileName = substitute(@fileName, @char, @replacementChar);
+Next
+
+if (@verboseLevel>4) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Input: "'+@inputString+'", Output: "'+@fileName+'"'); 
+endif
+
+return @fileName;

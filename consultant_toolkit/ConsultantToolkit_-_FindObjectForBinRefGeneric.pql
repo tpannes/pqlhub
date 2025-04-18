@@ -1,0 +1,206 @@
+/* v1.2
+ * PQL script "FindObjectForBinRefGeneric" created 2012 by TimoP
+ * 
+ * Description:  
+ *   The script searches the owner object/attribute for a given binary reference (BinRef). 
+ *   E.g. BinRef "$$Binary$$ 10.10.16881fd.3e61c" could result in OID 10.10.16881.fd0217cf and
+ *   attribute "AFPDS_Name" (which means it belongs to an AFP file in this case).
+ *   As there is no way to directly compute the OID out of the BinRef, the script has to search 
+ *   all binary attributes of all suitable instances on the node to find the correct object.
+ *   So use this script with care as it can cause of high load on the target node!
+ *
+ * Input: 
+ *   param1: array of binary reference strings (e.g. "$$Binary$$ 10.10.16881fd.3e61c")
+ *           (the owner node of the first BinRef will be searched, all foreign BinRefs are ignored)
+ *   param2: array of class internal names that define a whitelist to limit search results 
+ *   param3: array of class internal names that define a blacklist to limit search results (NOT SUPPORTED YET)
+ *   param4: verbose level (optional)
+ *
+ * Return: 
+ *   Array of strings in the following format (one line per matched BinRef):
+ *   <BinRef>;<ObjectID>;<BinaryAttribute>
+ *
+ */
+
+//@MSG_ERROR   = 'PFGM0001E';
+@MSG_WARNING = 'PFGM0002W';
+@MSG_INFO    = 'PFGM0003I';
+
+
+@self   = $self.$id,$displayname,$node,$ClassGUID,*;
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'FindObjectForBinRefGeneric';
+
+@binRefList                = $param1; 
+@classWhitelist            = $param2; 
+@classBlacklist            = $param3;
+@verboseLevel              = toInt($param4);
+
+@ATTR_TYPE_BINARY      = 15;
+@BINATTR_VALUE_PREFIX  = '$$Binary$$ ';
+
+
+// check input parameters
+@binRefListCount = count(@binRefList);
+if (@binRefListCount==0) then
+  message(@MSG_WARNING, '['+@class+'::'+@method+'] Binary reference list is empty ($param1)'); 
+  return createSet({});
+endif
+
+
+// filter input BinRefs based on owner node and ignore all entries that are not pointing 
+// to the same node as the first BinRef
+@oidOwnerNode = subStr(split(@binRefList[1], '.')[1], 12);
+@node = toObjRef(@oidOwnerNode + '.' + @oidOwnerNode + '.0.0');
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Searching objects for specified binary references on node '+@node+' ...');
+endif
+@nodeFilter = @BINATTR_VALUE_PREFIX + @oidOwnerNode + '.' + @oidOwnerNode + '.*';
+@binRefListFiltered = array();
+forEach @binref in (@binRefList)
+  if (@binref like @nodeFilter) then
+    @binRefListFiltered = insertValue(@binRefListFiltered, @binref);
+  endif
+next
+@binRefListFilteredCount = count(@binRefListFiltered);
+if (@binRefListFiltered < @binRefListCount) then
+  @ignoredBinRefCount = @binRefListCount - @binRefListFilteredCount;
+  if (@verboseLevel>1) then
+    message(@MSG_INFO, ' >> '+@ignoredBinRefCount+' binary references are ignored since they are not located on node '+@node);
+  endif  
+endif
+
+
+// create an OID prefix for each BinRef which is used as a filter to find possible instances later on
+// (the owner/creator node and part of the group ID can be directly computed from the BinRef)
+if (@verboseLevel>1) then
+  message(@MSG_INFO, ' >> generate list of OID prefixes based on supplied BinRefs to limit instance search ...');
+endif 
+@oidPrefixList = array();
+forEach @binRef in (@binRefListFiltered)
+  @oidComponents = split(@binRef, '.');
+  @oidOwnerNode = subStr(@oidComponents[1], 12);
+  @oidCreatorNode = @oidComponents[2];
+  @oidGroup = left(@oidComponents[3], length(@oidComponents[3])-2);
+  @oidIdUpperByte = right(@oidComponents[3],2);
+  if (left(@oidIdUpperByte,1)=='0') then @oidIdUpperByte = right(@oidIdUpperByte,1); endif
+  @oidPrefix = @oidOwnerNode + '.' + @oidCreatorNode + '.' + @oidGroup + '.' + @oidIdUpperByte;
+  if (!inArray(@oidPrefixList, @oidPrefix)) then
+    @oidPrefixList = insertValue(@oidPrefixList, @oidPrefix); 
+  endif
+next
+@oidPrefixCount = count(@oidPrefixList);
+if (@verboseLevel>1) then
+  @prefix = 'prefixes';
+  if (@oidPrefixCount==1) then
+    @prefix = 'prefix';
+  endif
+  message(@MSG_INFO, ' >> '+@oidPrefixCount+' OID '+@prefix+' generated');
+endif
+
+
+// generate list of classes for blacklist
+@classCountBlacklisted = 0;
+if (count(@classBlacklist)>0) then
+  if (@verboseLevel>1) then
+    message(@MSG_INFO, ' >> retrieving all classes that match blacklist (including hirarchy) ...');
+  endif  
+  $0($np,$v): @classesBlacklisted = $search($classes of *:\$inheritance.$internalname like @classBlacklist).$internalname;
+  @classCountBlacklisted = count(@classesBlacklisted); 
+  if (@verboseLevel>1) then
+    message(@MSG_INFO, ' >> '+@classCountBlacklisted+' classes found');
+  endif  
+endif
+// ### TODO: filter objects based on retrieved blacklisted classes later on ###
+
+
+// generate list of classes to search
+if (count(@classWhitelist)==0) then
+  // if no class filter (whitelist) has been provided, take all classes that have at least one binary attribute defined
+  if (@verboseLevel>1) then
+    message(@MSG_INFO, ' >> retrieving all classes that define at least one binary attribute ...');
+  endif  
+  $0($np,$v): @classes = $search($classes of *:count(\$attrdef(.$type==@ATTR_TYPE_BINARY))>0).$internalname; 
+  if (@verboseLevel>1) then
+    @classCount = count(@classes);
+    message(@MSG_INFO, ' >> '+@classcount+' classes found');
+  endif 
+else
+  // if a whitelist is defined, then only take those classes into account
+  if (@verboseLevel>1) then
+    message(@MSG_INFO, ' >> retrieving all classes that match whitelist ...');
+  endif  
+  $0($np,$v): @classes = $search($classes of *:.$internalname like @classWhitelist).$internalname; 
+endif
+@classes = toArray(@classes);
+ 
+
+// search all instances on target node that match any of the OID prefixes computed above
+@idx = 1;
+@instanceCountTotal = 0;
+@instances = createSet({});
+while(@idx <= @oidPrefixCount)
+  @oidPrefixFilter = @oidPrefixList[@idx]  + '*';
+  if (@verboseLevel>2) then
+    message(@MSG_INFO, ' >> searching all instances of matching types with OID prefix '+@oidPrefixFilter+' ...');
+  endif
+  @node($np): @instancesIdx = $search($instances of @classes:.$id like toString(@oidPrefixFilter)).$id,$internalName,$created,$classguid orderBy $classguid;
+  @instances = union(@instances, @instancesIdx); 
+  @instanceCountIdx = count(@instancesIdx);
+  @instanceCountTotal += @instanceCountIdx;
+  if (@verboseLevel>2) then
+    message(@MSG_INFO, ' >> '+@instanceCountIdx+' instances found for OID prefix "'+@oidPrefixFilter+'"'); 
+  endif
+  @idx++;
+next
+if (@verboseLevel>1) then
+  message(@MSG_INFO, ' >> '+@instanceCountTotal+' instances found for all OID prefixes'); 
+endif
+
+
+// search every binary attribute of each object for a matching BinRef
+@currentClassGuid   = $Invalid;
+@currentBinAttrList = array();
+@foundObjectsCount = 0;
+@result = array();
+forEach @obj in (@instances)
+
+  // stop loop if we have already found all provided BinRefs
+  if (@foundObjectsCount==@binRefListFilteredCount) then 
+    break; 
+  endif
+  
+  // check if class type changed between last and current object
+  // if it changed, update list of binary attributes to check
+  if (@obj.$classguid != @currentClassGuid) then
+    @currentClassGuid = @obj.$classguid;
+    @className = @currentClassGuid.$internalname;
+    @currentBinAttrList = toArray(@currentClassGuid\$inheritance\$attrdef(.$Type==@ATTR_TYPE_BINARY).$attrnameintern groupby $attrnameintern);
+    if (@verboseLevel>2) then
+      message(@MSG_INFO, ' >> processing instances of type "' + @className + '" ...' );
+    endif  
+  endif
+
+  // search binary attributes of current object to find a matching BinRef
+  @obj = @obj\$reload(*:).$id,@currentBinAttrList;
+  forEach @attr in (@currentBinAttrList)
+    if (@obj.@attr like @binRefListFiltered) then
+      @obj = @obj\$reload.$id,$displayname,$internalname,$created,*;
+      if (@verboseLevel>0) then
+        message(@MSG_INFO, ' MATCH. Binary reference "' + @obj.@attr + '" found in attribute "'+@attr+'" of object '+@obj.$id+' ("'+@obj.$displayname + '")');
+      endif  
+      @result = insertValue(@result, @obj.@attr + ';' + @obj.$id + ';' + @attr);
+      @foundObjectsCount++;
+    endif
+  next
+next
+
+// return result
+@msgNotFound = '';
+if (@foundObjectsCount==0) then
+  @msgNotFound = ' without result';
+endif
+if (@verboseLevel>0) then
+  message(@MSG_INFO, '['+@class+'::'+@method+'] Search finished'+@msgNotFound);
+endif  
+return createSet(@result);

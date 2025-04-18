@@ -1,0 +1,26 @@
+@self = $self.$id,$node,*;
+@MSG_ERROR   = 'PFGM0001E';
+//@MSG_WARNING = 'PFGM0002W';
+//@MSG_INFO    = 'PFGM0003I';
+
+@class  = @self\$ClassGUID.$InternalName;
+@method = 'CopyAttributes';
+
+@sourceObj      = @self.CopyAttributesSource;
+@targetObjs     = value(@self.CopyAttributesTarget);
+@attrIgnoreList = @self.CopyAttributesIgnoreList;
+@omitObjName    = @self.CopyAttributesOmitObjNames;
+@omitBinAttrs   = @self.CopyAttributesOmitBinaryAttributes;
+@simulationMode = @self.CopyAttributesSimulationMode;
+@verbodeLevel   = @self.VerboseLevel; 
+
+if (IsInvalid(@sourceObj) OR IsInvalid(@targetObjs)) then
+  message(@MSG_ERROR, '['+@class+'::'+@method+'] Invalid source or target object'); 
+endif
+
+ForEach @targetObj in (@targetObjs)
+  @self.CopyAttributesGeneric(@sourceObj, @targetObj, @attrIgnoreList, @omitObjName, @omitBinAttrs, @simulationMode, @verbodeLevel);  
+Next
+
+return 0;
+

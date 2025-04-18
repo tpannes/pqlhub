@@ -1,0 +1,31 @@
+// return list of all binary attributes of source objects
+@MSG_WARNING = 'PUGM0001W';
+
+@self   = $self.$id,$classGUID,BinAttrFunctionsSourceObjects;
+@class  = @self\$ClassGUID.$internalName;
+@attr = 'BinAttrFunctionsAttrSelection';
+@ATTR_TYPE_BINARY = 15;
+
+@attributeList = createSet({});
+@sourceObjects = value(@self.BinAttrFunctionsSourceObjects);
+@sourceObjectsValid = createSet({});
+
+
+// filter source objects for invalid objects
+@idx = 1;
+while (@idx <= count(@sourceObjects))
+  if (isAccessible(@sourceObjects[@idx])) then
+    @sourceObjectsValid = union(@sourceObjectsValid, @sourceObjects[@idx].$id);
+  else
+    message(@MSG_WARNING, '['+@class+'::_'+@attr+'] Object ' + @sourceObjects[@idx] + ' in source set is invalid and will be ignored');
+  endif
+  @idx++;
+next
+
+if (count(@sourceObjectsValid)>0) then
+  @attributeList = @sourceObjectsValid\$Inheritance\$AttrDef(.$Type==@ATTR_TYPE_BINARY).$AttrNameIntern GroupBy $AttrNameIntern;
+endif 
+
+return @attributeList;
+
+
