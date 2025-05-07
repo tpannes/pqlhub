@@ -1,0 +1,38 @@
+$pqlHeader.Id = "PortalUsageStatistics_by_Node";
+
+executionFlags = $ie,$nin;
+@T_PORTAL_SESSION = {c4478a12-eeee-91e8-0701-612b6f5d5511};
+@T_PORTAL_NODE    = {9b5a83e2-fe1c-91e8-0701-612b6f5d5511};
+@T_WEBSERVER      = {b905c572-fe1d-91e8-0701-612b6f5d5511};
+
+$Local($im,$p,$nrr): @portalNodes = $Search($Instances Of @T_PORTAL_NODE:).$Id,$Name,$DisplayName,$InternalName,$Online,Platform,BuildNumber,HWInt,Hostname;
+
+
+@DAY = 4;
+@today = now(@DAY); 
+// $ie is a must as $nrr can lead to empty "connections"
+$0($nrr): @sessions = $Search($Instances Of @T_PORTAL_SESSION:.$modified > @today and .MultipleConnections[1]!=$Invalid) referto @s.$Id,
+       (extract(@s.MultipleConnections[1],",",1)) as Portal,
+       (1) as Used,
+       $count() as SessionCount 
+       groupBy Portal
+       ;
+
+// add information about portal node       
+@sessions = @sessions\$modify.*,SessionCount,(ToObjRef(Format("@1v@.@1v@.0.0",.Portal))\$reload.hostname) as Machine,
+                                (ToObjRef(Format("@1v@.@1v@.0.0",.Portal))) as PortalNode,
+                                (ToObjRef(Format("@1v@.@1v@.0.0",.Portal))\(@T_WEBSERVER:).$id) as Webserver,
+                                (ToObjRef(Format("@1v@.@1v@.0.0",.Portal)).$online) as Online;
+                                
+// cut off offline nodes (e.g. after node dump, session still have "MultipleConnections" set, so we might have false positives from above)                             
+@sessions = @sessions\$subset(.online).*;
+
+// add those portal with no users
+forEach @pn in (@portalNodes)
+  if (@sessions\$subset(.portalnode == @pn.$id) == $invalid) then
+    @sessions = AppendSet(@sessions,($vector.(@pn.hostname) as Machine,(@pn.$id) as PortalNode,(0) as Used,(@pn.$online) as Online,(@pn.$online?0:$invalid) as SessionCount,(@pn\(@T_WEBSERVER:).$id) as Webserver));
+  endIf
+next
+
+@fieldnames = {"Machine","PortalNode","SessionCount","Webserver"}; 
+return @sessions\$subset.@fieldnames orderby Machine(a),PortalNode(a);

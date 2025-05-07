@@ -1,0 +1,57 @@
+$pqlHeader.Id = "PortalUsageStatistics_by_Machine";
+
+executionFlags = $ie,$nin;
+@T_PORTAL_SESSION = {c4478a12-eeee-91e8-0701-612b6f5d5511};
+@T_PORTAL_NODE    = {9b5a83e2-fe1c-91e8-0701-612b6f5d5511};
+@T_WEBSERVER      = {b905c572-fe1d-91e8-0701-612b6f5d5511};
+
+$Local($im,$p,$nrr): @portalNodes = $Search($Instances Of @T_PORTAL_NODE:).$Id,$Name,$DisplayName,$InternalName,$Online,Platform,BuildNumber,HWInt,Hostname;
+
+
+@DAY = 4;
+@today = now(@DAY); 
+// $ie is a must as $nrr can lead to empty "connections"
+$0($nrr): @sessions = $Search($Instances Of @T_PORTAL_SESSION:.$modified > @today and .MultipleConnections[1]!=$Invalid) referto @s.$Id,
+       (extract(@s.MultipleConnections[1],",",1)) as Portal,     
+       $count() as SessionCount 
+       groupBy Portal
+       ;
+
+// add information about portal node       
+@sessions = @sessions\$modify.*,SessionCount,(ToObjRef(Format("@1v@.@1v@.0.0",.Portal))\$reload.hostname) as Machine,
+                                (ToObjRef(Format("@1v@.@1v@.0.0",.Portal))) as PortalNode,
+                                (ToObjRef(Format("@1v@.@1v@.0.0",.Portal))\(@T_WEBSERVER:).$id) as Webserver,
+                                (1) as Used,
+                                (1) as Online;
+
+// add unused portal nodes with no users
+forEach @pn in (@portalNodes)
+  if (@sessions\$subset(.portalnode == @pn.$id) == $invalid) then
+    @sessions = AppendSet(@sessions,($vector.(@pn.hostname) as Machine,(@pn.$id) as PortalNode,(0) as SessionCount,(0) as Used,(@pn.$online?1:0) as Online,(@pn.$online?0:$invalid) as SessionCount,(@pn\(@T_WEBSERVER:).$id) as Webserver));
+  endIf
+next
+
+// group per host and compute sums
+@sessions = @sessions\$subset.$Sum(SessionCount) as SessionCount,
+                              $Sum(Used)         as PortalNodesUsed,
+                              $Sum(Online)       as PortalNodesOnline,
+                              $Min(SessionCount) as Min,
+                              $Avg(SessionCount) as Average,
+                              $Max(SessionCount) as Max,
+                              Machine groupby Machine;
+//return @sessions;
+// compute statistics
+@users    = @sessions\$subset.$sum(SessionCount) as Count;
+@sessions = @sessions\$modify.*,
+                     (ToInt(10*.Average)/10) as Average,
+                     (ToInt(1000*.SessionCount/@users.Count)/10) as Percentage;
+
+return @sessions\$subset.Machine,
+                        (.PortalNodesOnline) as "Nodes online",
+                        (.PortalNodesUsed)   as "Portals used",
+                        (.SessionCount)      as Users,
+                        Min,
+                        Average,
+                        Max,
+                        Percentage;
+
