@@ -1,0 +1,38 @@
+$pqlHeader.Id = 'GetLicenseStatistics';
+$pqlHeader.Description = 'Returns current usage statistics for Papyrus Client licenses.
+Only works in domains where the DC acts as main IPAS - typically when using SubIPAS functionality. 
+In domains with standalone IPAS, there is no way to execute PQLs on the IPAS and therefore we cannot query license information from outside.
+This script need to be executed with System Administrator role.'
+;
+
+@PRODUCTID_CLIENT = 12;
+@keysetCollection = {e9ee2e19-aa59-39c4-9181-d9017cac20b9};
+@clientLicences = @keysetCollection\(LicenceSet:) referto @licenseSet\(LicenceProduct:) referto @licenseProduct\(LicenceProductPart:.Identification==@PRODUCTID_CLIENT).
+  (@licenseSet.$DisplayName+" ["+@licenseSet.$Id+"] ") as "keyset",
+  (.$Node)                         as "node_id",
+  (.$Node\$Reload.$DisplayName)    as "node_name",
+  (@licenseProduct.$DisplayName)   as "product",
+  (.$Id)                           as "package_id",
+  Count                            as "count",
+  Free                             as "free",
+  (.UsedConcurrent)                as "used_concurrent",
+  (.UsedCached)                    as "used_cached",
+  (.UsedPermanent)                 as "used_permanent",
+  (.UsedConcurrent+.UsedCached+.UsedPermanent) as "used";
+
+
+@clientLicencesTotals = @clientLicences\$Subset.
+  $Sum(Count)           as "count",
+  $Sum(Free)            as "free",
+  $Sum(Used)            as "used",
+  $Sum(used_concurrent) as "used_concurrent",
+  $Sum(used_cached)     as "used_cached",
+  $Sum(used_permanent)  as "used_permanent";
+
+
+Return $Vector.
+  ("Papyrus Client Viewer")      as "product",
+  ("012")                        as "productid",
+  ("CL")                         as "productcode",
+  (ToMem(@clientLicencesTotals)) as "totals",
+  (ToMem(@clientLicences))       as "details";
