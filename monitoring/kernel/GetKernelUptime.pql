@@ -1,0 +1,12 @@
+$pqlHeader.Id = 'GetKernelUptime';
+$pqlHeader.Description = 'Returns kernel uptime of a given node in minutes';
+
+@node = $param1;
+
+//For APA statictic templates, look at:
+//  Library / System Management / Analyzer Templates / Information Types / Legacy 'Node Information'
+@apaPocxxknlSettingsParam = {b2ee0b45-b16e-91e2-0494-995625ad50f0}.$id; // 0101 Kernel Settings
+
+@node: @stats = FromMem(@apaPocxxknlSettingsParam.GetStatus().Return1);
+@kernelStartupTime = DateTime(@stats\$subset(.Property=="KernelStartupTime").EffectiveSetting);
+return DateTimeDiff(Now(),@kernelStartupTime,7); // 7 := minutes
