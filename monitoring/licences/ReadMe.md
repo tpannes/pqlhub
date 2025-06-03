@@ -1,6 +1,9 @@
-PQL sample to query licence information 
+__PQL sample to query licence information__
+
 Only works in domains where the DC acts as main IPAS - typically when using SubIPAS functionality. 
+
 In domains with standalone IPAS, there is no way to execute PQLs on the IPAS and therefore we cannot query license information from outside.
+
 This script need to be executed with System Administrator role.
 
 ---
